@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle, Trash2, Edit, AlertTriangle, CheckCircle2, Clock, Info, UserPlus, AlertCircle, Settings } from "lucide-react";
+import { PlusCircle, Trash2, Edit, AlertTriangle, CheckCircle2, Clock, Info, UserPlus, AlertCircle, Settings, Pencil } from "lucide-react";
 import { Cronograma } from "@/components/Cronograma";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis, Legend } from "recharts";
 import { parseISO, isPast } from "date-fns";
@@ -27,6 +27,7 @@ export default function AdminDashboard() {
   const [openDeleteTecnico, setOpenDeleteTecnico] = useState<number | null>(null);
   const [editEmpresa, setEditEmpresa] = useState<any>(null);
   const [editTecnico, setEditTecnico] = useState<any>(null);
+  const [editMantenimiento, setEditMantenimiento] = useState<any>(null);
 
   const getDayName = (dateStr: string) => {
     if (!dateStr) return "-";
@@ -115,7 +116,24 @@ export default function AdminDashboard() {
       await api.delete(`/tecnicos/${id}`);
       setOpenDeleteTecnico(null);
       loadData();
-    } catch { alert("Error al eliminar"); }
+    } catch (err: any) { alert("Error al eliminar"); }
+  };
+
+  const handleUpdateMantenimiento = async (e: any) => {
+     e.preventDefault();
+     if (!editMantenimiento) return;
+
+     const empresaRel = empresas.find(ep => ep.id === editMantenimiento.empresa_id);
+     if (empresaRel && editMantenimiento.fecha_programada < empresaRel.fecha_inicio) {
+        alert(`No se puede programar antes de la fecha de inicio de la empresa (${empresaRel.fecha_inicio})`);
+        return;
+     }
+
+     try {
+       await api.put(`/mantenimientos/${editMantenimiento.id}`, editMantenimiento);
+       setEditMantenimiento(null);
+       loadData();
+     } catch { alert("Error al actualizar mantenimiento"); }
   };
 
   /* KPIs Calculations */
@@ -379,7 +397,7 @@ export default function AdminDashboard() {
         <TabsContent value="administracion" className="w-full space-y-6 outline-none border-none mt-6 animate-in fade-in slide-in-from-bottom-2">
            <div className="flex justify-center gap-3">
              <Dialog open={openAddTecnico} onOpenChange={setOpenAddTecnico}>
-             <DialogTrigger asChild><Button variant="outline" className="border-sky-600 text-sky-500 hover:bg-sky-900/40"><UserPlus className="mr-2 h-4 w-4" /> Registrar Técnico</Button></DialogTrigger>
+              <DialogTrigger render={<Button variant="outline" className="border-sky-600 text-sky-500 hover:bg-sky-900/40"><UserPlus className="mr-2 h-4 w-4" /> Registrar Técnico</Button>} />
              <DialogContent className="border-slate-700 bg-[#1E293B]">
                  <DialogHeader><DialogTitle className="text-sky-400">Nuevo Técnico Asignable</DialogTitle></DialogHeader>
                  <form onSubmit={handleCreateTecnico} className="space-y-4">
@@ -391,7 +409,7 @@ export default function AdminDashboard() {
              </Dialog>
 
              <Dialog open={openAdd} onOpenChange={setOpenAdd}>
-               <DialogTrigger asChild><Button className="bg-blue-600 hover:bg-blue-700 text-white"><PlusCircle className="mr-2 h-4 w-4" /> Programar Mantenimiento</Button></DialogTrigger>
+                <DialogTrigger render={<Button className="bg-blue-600 hover:bg-blue-700 text-white"><PlusCircle className="mr-2 h-4 w-4" /> Programar Mantenimiento</Button>} />
                <DialogContent className="sm:max-w-xl bg-[#1E293B] border-slate-700 text-white">
                  <DialogHeader><DialogTitle>Registrar Empresa</DialogTitle></DialogHeader>
                  <form onSubmit={handleCreateEmpresa} className="space-y-4 py-4 text-slate-200">
@@ -605,6 +623,43 @@ export default function AdminDashboard() {
              </DialogContent>
            </Dialog>
 
+           {/* EDIT MANTENIMIENTO MODAL */}
+           <Dialog open={!!editMantenimiento} onOpenChange={(open) => !open && setEditMantenimiento(null)}>
+             <DialogContent className="bg-[#1E293B] border-slate-700 text-white">
+               <DialogHeader><DialogTitle>Editar Mantenimiento</DialogTitle></DialogHeader>
+               {editMantenimiento && (
+                 <form onSubmit={handleUpdateMantenimiento} className="space-y-4 py-4 text-slate-200">
+                   <div className="space-y-2">
+                     <Label>Fecha Programada</Label>
+                     <Input type="date" required value={editMantenimiento.fecha_programada} onChange={(e) => setEditMantenimiento({ ...editMantenimiento, fecha_programada: e.target.value })} className="bg-slate-900/50 border-slate-700" />
+                   </div>
+                   <div className="space-y-2">
+                     <Label>Estado</Label>
+                     <Select value={editMantenimiento.estado} onValueChange={(val) => setEditMantenimiento({ ...editMantenimiento, estado: val })}>
+                       <SelectTrigger className="bg-slate-900/50 border-slate-700"><SelectValue /></SelectTrigger>
+                       <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                         <SelectItem value="PENDIENTE">PENDIENTE</SelectItem>
+                         <SelectItem value="EJECUTADO">EJECUTADO</SelectItem>
+                         <SelectItem value="VENCIDO">VENCIDO</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
+                   <div className="space-y-2">
+                     <Label>Técnico</Label>
+                     <Select value={editMantenimiento.tecnico || ""} onValueChange={(val) => setEditMantenimiento({ ...editMantenimiento, tecnico: val })}>
+                       <SelectTrigger className="bg-slate-900/50 border-slate-700"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                       <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                         <SelectItem value="N/A">N/A</SelectItem>
+                         {tecnicos.map(t => <SelectItem key={t.id} value={t.nombre}>{t.nombre}</SelectItem>)}
+                       </SelectContent>
+                     </Select>
+                   </div>
+                   <DialogFooter><Button type="submit" className="bg-sky-600 hover:bg-sky-700">Guardar Cambios</Button></DialogFooter>
+                 </form>
+               )}
+             </DialogContent>
+           </Dialog>
+
            {/* VISTA DE LISTA DE MANTENIMIENTOS */}
            <div className="space-y-4 pt-4 border-t border-slate-700/50">
               <div className="flex flex-col items-center bg-slate-900/30 p-6 rounded-xl border border-slate-700/50 gap-6 text-center">
@@ -638,9 +693,11 @@ export default function AdminDashboard() {
                     <TableRow className="border-slate-700/50">
                       <TableHead className="text-slate-300"># Ref</TableHead>
                       <TableHead className="text-slate-300">Entidad / Empresa</TableHead>
+                      <TableHead className="text-slate-300">Día</TableHead>
                       <TableHead className="text-slate-300">Fecha Programada</TableHead>
                       <TableHead className="text-slate-300">Técnico Asignado</TableHead>
-                      <TableHead className="text-right text-slate-300">Estado</TableHead>
+                      <TableHead className="text-slate-300">Estado</TableHead>
+                      <TableHead className="text-right text-slate-300 px-6">Acción</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -648,9 +705,10 @@ export default function AdminDashboard() {
                       <TableRow key={m.id} className="border-slate-700/50 hover:bg-slate-800/50">
                         <TableCell className="text-slate-200 text-xs">MANT-{m.id}</TableCell>
                         <TableCell className="font-semibold text-white">{m.Empresa?.nombre}</TableCell>
+                        <TableCell className="text-slate-300 font-bold text-xs uppercase">{getDayName(m.fecha_programada)}</TableCell>
                         <TableCell className="text-slate-300 flex items-center gap-2"><Clock className="w-3 h-3" /> {m.fecha_programada}</TableCell>
                         <TableCell className="text-slate-300 font-medium">{m.tecnico || "N/A"}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="">
                           <Badge variant="outline" className={`justify-center text-[11px] py-0.5 border-none px-3 ${
                                 m.estado === 'EJECUTADO' ? 'text-emerald-500 bg-emerald-500/10' : 
                                 m.estado === 'VENCIDO' ? 'text-red-500 bg-red-500/10' : 
@@ -658,11 +716,16 @@ export default function AdminDashboard() {
                               {m.estado}
                           </Badge>
                         </TableCell>
+                        <TableCell className="text-right px-4">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-sky-500 hover:text-sky-400 hover:bg-sky-500/20" onClick={() => setEditMantenimiento({...m})}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                     {mantenimientosFiltrados.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} className="py-8 text-center text-slate-200">Sin coincidencias para los filtros seleccionados.</TableCell>
+                        <TableCell colSpan={7} className="py-8 text-center text-slate-200">Sin coincidencias para los filtros seleccionados.</TableCell>
                       </TableRow>
                     )}
                   </TableBody>

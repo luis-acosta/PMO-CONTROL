@@ -18,6 +18,14 @@ type EstadoFiltro = "TODOS" | "PENDIENTE" | "EJECUTADO" | "VENCIDO";
 export default function TecnicoDashboard() {
   const [todos, setTodos] = useState<any[]>([]);
   const [empresas, setEmpresas] = useState<any[]>([]);
+
+  const getDayName = (dateStr: string) => {
+    if (!dateStr) return "-";
+    const days = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return days[date.getDay()];
+  };
   const [tecnicos, setTecnicos] = useState<any[]>([]);
 
   // Edición de registros ejecutados
@@ -312,9 +320,19 @@ export default function TecnicoDashboard() {
                           )}
                         </div>
                       </div>
-                      <CardDescription className="text-slate-300 text-xs">
-                        Programado: <span className="font-semibold text-slate-300">{m.fecha_programada}</span>
-                        {m.fecha_ejecucion && <> · Ejecutado: <span className="text-emerald-400 font-semibold">{String(m.fecha_ejecucion).split('T')[0]}</span></>}
+                      <CardDescription className="text-slate-200 text-xs font-medium space-y-1">
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <Clock className="h-3 w-3 text-sky-500" />
+                          Programado: <span className="font-bold">{m.fecha_programada}</span> 
+                          <span className="text-sky-400 font-bold uppercase ml-1">({getDayName(m.fecha_programada)})</span>
+                        </div>
+                        {m.fecha_ejecucion && (
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                            Ejecutado: <span className="text-emerald-400 font-bold">{String(m.fecha_ejecucion).split('T')[0]}</span> 
+                            <span className="text-emerald-500/80 font-bold uppercase ml-1">({getDayName(String(m.fecha_ejecucion).split('T')[0])})</span>
+                          </div>
+                        )}
                       </CardDescription>
                     </CardHeader>
 
