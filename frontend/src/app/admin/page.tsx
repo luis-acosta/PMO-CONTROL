@@ -363,7 +363,7 @@ export default function AdminDashboard() {
                         paddingAngle={8}
                         dataKey="value"
                         labelLine={false}
-                        label={({ percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ""}
+                        label={({ percent }) => (percent !== undefined && percent > 0.05) ? `${(percent * 100).toFixed(0)}%` : ""}
                         stroke="none"
                       >
                         {statusPieData.map((entry, index) => (
