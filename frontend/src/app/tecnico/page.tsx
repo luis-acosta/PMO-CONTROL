@@ -343,7 +343,7 @@ export default function TecnicoDashboard() {
                         {isPendiente ? (
                           <Select
                             value={card.tecnico || ""}
-                            onValueChange={val => handleCardChange(m.id, 'tecnico', val)}
+                            onValueChange={val => handleCardChange(m.id, 'tecnico', val ?? "")}
                           >
                             <SelectTrigger className="bg-slate-900/50 border-slate-600 text-slate-200 h-8 text-sm">
                               <SelectValue placeholder="Seleccionar técnico..." />
