@@ -35,7 +35,7 @@ services:
       - pdinet
 
   backend:
-    build: ./backend
+    image: ghcr.io/luis-acosta/pmo-control-backend:main
     restart: always
     environment:
       DATABASE_URL: postgres://pmo_user:pmo_password@db:5432/pmo_db
@@ -52,10 +52,7 @@ services:
       - "traefik.http.services.backend.loadbalancer.server.port=3001"
 
   frontend:
-    build:
-      context: ./frontend
-      args:
-        NEXT_PUBLIC_API_URL: https://api.mto.pdiadvanced.cloud
+    image: ghcr.io/luis-acosta/pmo-control-frontend:main
     restart: always
     depends_on:
       - backend
