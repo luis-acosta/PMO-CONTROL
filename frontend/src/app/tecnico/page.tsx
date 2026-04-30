@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,13 +12,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Cronograma } from "@/components/Cronograma";
-import { Wrench, CheckCircle2, Clock, AlertCircle, Building2, Pencil } from "lucide-react";
+import { Wrench, CheckCircle2, Clock, AlertCircle, Building2, Pencil, LogOut, User } from "lucide-react";
 
 type EstadoFiltro = "TODOS" | "PENDIENTE" | "EJECUTADO" | "VENCIDO";
-
 export default function TecnicoDashboard() {
+  const router = useRouter();
   const [todos, setTodos] = useState<any[]>([]);
   const [empresas, setEmpresas] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
 
   const getDayName = (dateStr: string) => {
     if (!dateStr) return "-";
@@ -40,8 +42,9 @@ export default function TecnicoDashboard() {
   // Estado local por tarjeta: tecnico seleccionado, fecha ejecucion, observaciones
   const [cardData, setCardData] = useState<Record<number, { tecnico: string; fecha: string; obs: string }>>({});
 
-  const loadData = async () => {
+  const loadData = async (currentUser?: any) => {
     try {
+      const activeUser = currentUser || user;
       const t = `?t=${Date.now()}`;
       const [mantRes, empRes, tecRes] = await Promise.all([
         api.get(`/mantenimientos${t}`),
@@ -52,11 +55,11 @@ export default function TecnicoDashboard() {
       setEmpresas(empRes.data);
       setTecnicos(tecRes.data);
 
-      // Pre-poblar cardData con el técnico actual de cada mantenimiento
+      // Pre-poblar cardData con el técnico actual de cada mantenimiento o el usuario logueado
       const defaults: Record<number, { tecnico: string; fecha: string; obs: string }> = {};
       mantRes.data.forEach((m: any) => {
         defaults[m.id] = {
-          tecnico: m.tecnico || "",
+          tecnico: m.tecnico || activeUser?.tecnico || "",
           fecha: new Date().toISOString().split('T')[0],
           obs: m.observaciones || ""
         };
@@ -67,7 +70,27 @@ export default function TecnicoDashboard() {
     }
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { 
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('pmo_user');
+      const token = localStorage.getItem('pmo_token');
+      
+      if (!token || !storedUser) {
+        router.push('/login');
+        return;
+      }
+
+      const userData = JSON.parse(storedUser);
+      setUser(userData);
+      loadData(userData); 
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('pmo_token');
+    localStorage.removeItem('pmo_user');
+    router.push('/login');
+  };
 
   const handleCardChange = (id: number, field: string, value: string) => {
     setCardData(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
@@ -175,12 +198,25 @@ export default function TecnicoDashboard() {
 
   return (
     <div className="container mx-auto p-4 sm:p-6 space-y-6 max-w-7xl">
-      <div className="flex items-center gap-4 mb-8 bg-white p-6 rounded-2xl shadow-xl border border-slate-200 w-full lg:w-fit animate-in slide-in-from-top-4 duration-500">
-        <span className="p-2 bg-sky-600 rounded-md shadow-lg"><Wrench className="h-5 w-5 text-white" /></span>
-        <div>
-          <h2 className="text-2xl font-extrabold text-black">Portal de Técnico</h2>
-          <p className="text-slate-700 font-bold uppercase tracking-widest text-[11px]">Gestión y firma de mantenimientos</p>
+      <div className="flex items-center justify-between mb-8 bg-white p-6 rounded-2xl shadow-xl border border-slate-200 w-full animate-in slide-in-from-top-4 duration-500">
+        <div className="flex items-center gap-4">
+          <span className="p-2 bg-sky-600 rounded-md shadow-lg"><Wrench className="h-5 w-5 text-white" /></span>
+          <div>
+            <h2 className="text-2xl font-extrabold text-black">Portal de Técnico</h2>
+            <p className="text-slate-700 font-bold uppercase tracking-widest text-[11px]">
+              Bienvenido, <span className="text-sky-700 font-black">{user?.tecnico || user?.username}</span>
+            </p>
+          </div>
         </div>
+
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="text-slate-500 hover:text-red-500 transition-colors"
+          onClick={handleLogout}
+        >
+          <LogOut className="h-4 w-4 mr-2" /> Salir
+        </Button>
       </div>
 
       {/* FILTROS RESPONSIVOS */}
@@ -344,6 +380,7 @@ export default function TecnicoDashboard() {
                           <Select
                             value={card.tecnico || ""}
                             onValueChange={val => handleCardChange(m.id, 'tecnico', val ?? "")}
+                            disabled={!!user?.tecnico} // Deshabilitar si ya tenemos un técnico vinculado
                           >
                             <SelectTrigger className="bg-slate-900/50 border-slate-600 text-slate-200 h-8 text-sm">
                               <SelectValue placeholder="Seleccionar técnico..." />

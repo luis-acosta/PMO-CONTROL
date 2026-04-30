@@ -1,6 +1,8 @@
+import { useState, useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarDays, CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface CronogramaProps {
   empresas: any[];
@@ -8,7 +10,31 @@ interface CronogramaProps {
 }
 
 export function Cronograma({ empresas, mantenimientos }: CronogramaProps) {
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+  // Calculate available years from data
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<number>([new Date().getFullYear()]);
+    mantenimientos.forEach(m => {
+      if (m.fecha_programada) {
+        const y = parseISO(m.fecha_programada).getFullYear();
+        yearsSet.add(y);
+      }
+    });
+    return Array.from(yearsSet).sort((a, b) => a - b);
+  }, [mantenimientos]);
+
+  // Filter maintenances for the selected year
+  const filteredMantenimientos = useMemo(() => {
+    return mantenimientos.filter(m => {
+      const isEjecutado = m.estado === "EJECUTADO";
+      const rawDate = (isEjecutado && m.fecha_ejecucion) ? m.fecha_ejecucion : m.fecha_programada;
+      if (!rawDate) return false;
+      const dateStr = typeof rawDate === 'string' ? rawDate.split('T')[0] : new Date(rawDate).toISOString().split('T')[0];
+      return parseISO(dateStr).getFullYear() === selectedYear;
+    });
+  }, [mantenimientos, selectedYear]);
 
   // Initialize all enterprises to guarantee a row
   const dataPorEmpresa: Record<string, { nombre: string; meses: Record<number, any[]> }> = {};
@@ -20,13 +46,10 @@ export function Cronograma({ empresas, mantenimientos }: CronogramaProps) {
       };
   });
 
-  // Hydrate with maintenances
-  mantenimientos.forEach(m => {
-    // Si está ejecutado, preferimos la fecha de ejecución para el cronograma visual
+  // Hydrate with filtered maintenances
+  filteredMantenimientos.forEach(m => {
     const isEjecutado = m.estado === "EJECUTADO";
     const rawDate = (isEjecutado && m.fecha_ejecucion) ? m.fecha_ejecucion : m.fecha_programada;
-    
-    if (!rawDate) return;
     
     // Si rawDate es un objeto Date o ISO largo, quedarnos con la parte YYYY-MM-DD
     const dateStr = typeof rawDate === 'string' ? rawDate.split('T')[0] : new Date(rawDate).toISOString().split('T')[0];
@@ -47,7 +70,6 @@ export function Cronograma({ empresas, mantenimientos }: CronogramaProps) {
         dataPorEmpresa[empId].meses[mesNum] = [];
     }
     
-    // Adjuntar la fecha calculada para el renderizado consistente
     dataPorEmpresa[empId].meses[mesNum].push({ ...m, _displayDate: dateStr });
   });
 
@@ -57,17 +79,33 @@ export function Cronograma({ empresas, mantenimientos }: CronogramaProps) {
     return (
       <div className="text-center p-6 border border-dashed rounded-lg bg-card text-slate-300">
         <CalendarDays className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-        <h3 className="text-sm font-medium">Cronograma 12 Meses (Vacío)</h3>
+        <h3 className="text-sm font-medium">Cronograma de Mantenimientos (Vacío)</h3>
       </div>
     );
   }
 
   return (
     <div className="w-full bg-card text-card-foreground rounded-xl border shadow-sm flex flex-col mt-4 overflow-hidden">
-      <div className="px-4 py-3 border-b bg-muted/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-        <div>
-          <h3 className="text-base font-bold text-foreground">Cronograma de Mantenimiento Anual (Gantt)</h3>
-          <p className="text-xs text-slate-300">Vista global de 12 meses por empresa</p>
+      <div className="px-4 py-3 border-b bg-muted/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div>
+            <h3 className="text-base font-bold text-foreground">Cronograma de Mantenimiento Anual (Gantt)</h3>
+            <p className="text-xs text-slate-400">Vista global de 12 meses por empresa</p>
+          </div>
+          
+          <div className="flex items-center gap-2 bg-background/50 p-1 rounded-lg border ml-2">
+            <span className="text-[10px] font-bold uppercase text-slate-500 px-1">Año:</span>
+            <Select value={String(selectedYear)} onValueChange={(val) => setSelectedYear(Number(val))}>
+              <SelectTrigger className="h-8 w-[100px] bg-slate-900 border-slate-700 text-xs font-bold">
+                <SelectValue placeholder="Año" />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-900 border-slate-700 text-white">
+                {availableYears.map(y => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="flex items-center gap-3 text-xs font-medium bg-background/50 py-1 px-2 rounded-md border">
           <span className="flex items-center gap-1"><Circle className="h-3 w-3 text-yellow-500 fill-yellow-500" /> Pendiente</span>

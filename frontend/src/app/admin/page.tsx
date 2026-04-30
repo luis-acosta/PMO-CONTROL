@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,15 +12,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle, Trash2, Edit, AlertTriangle, CheckCircle2, Clock, Info, UserPlus, AlertCircle, Settings, Pencil } from "lucide-react";
+import { PlusCircle, Trash2, Edit, AlertTriangle, CheckCircle2, Clock, Info, UserPlus, AlertCircle, Settings, Pencil, LogOut, ShieldCheck, LayoutDashboard, Briefcase, CalendarDays, Users } from "lucide-react";
 import { Cronograma } from "@/components/Cronograma";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis, Legend } from "recharts";
 import { parseISO, isPast } from "date-fns";
-
 export default function AdminDashboard() {
+  const router = useRouter();
   const [empresas, setEmpresas] = useState<any[]>([]);
   const [mantenimientos, setMantenimientos] = useState<any[]>([]);
   const [tecnicos, setTecnicos] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
   
   const [openAdd, setOpenAdd] = useState(false);
   const [openAddTecnico, setOpenAddTecnico] = useState(false);
@@ -27,6 +30,8 @@ export default function AdminDashboard() {
   const [openDeleteTecnico, setOpenDeleteTecnico] = useState<number | null>(null);
   const [editEmpresa, setEditEmpresa] = useState<any>(null);
   const [editTecnico, setEditTecnico] = useState<any>(null);
+  const [editUsuario, setEditUsuario] = useState<any>(null);
+  const [openAddUsuario, setOpenAddUsuario] = useState(false);
   const [editMantenimiento, setEditMantenimiento] = useState<any>(null);
 
   const getDayName = (dateStr: string) => {
@@ -38,29 +43,57 @@ export default function AdminDashboard() {
   };
   
   const [formData, setFormData] = useState({ nombre: "", fecha_inicio: "", frecuencia_meses: "1", dia_semana: "6", base_tecnico: "" });
-  const [tecData, setTecData] = useState({ nombre: "", especialidad: "" });
+  const [tecData, setTecData] = useState({ nombre: "", especialidad: "", username: "", password: "" });
+  const [userEditData, setUserEditData] = useState({ nombre: "", username: "", password: "", role: "TECNICO" });
   const [saving, setSaving] = useState(false);
   
   const [filtroMants, setFiltroMants] = useState<"TODOS"|"PENDIENTE"|"EJECUTADO"|"VENCIDO">("TODOS");
   const [filtroEmpresa, setFiltroEmpresa] = useState<string>("TODAS");
+  const [activeSection, setActiveSection] = useState<"dashboard" | "administracion" | "cronograma" | "usuarios">("dashboard");
 
   const loadData = async () => {
     try {
       const uniqueSuffix = `?t=${Date.now()}`;
-      const [empRes, mantRes, tecRes] = await Promise.all([
+      const [empRes, mantRes, tecRes, userRes] = await Promise.all([
         api.get(`/empresas${uniqueSuffix}`),
         api.get(`/mantenimientos${uniqueSuffix}`),
-        api.get(`/tecnicos${uniqueSuffix}`).catch(() => ({ data: [] }))
+        api.get(`/tecnicos${uniqueSuffix}`).catch(() => ({ data: [] })),
+        api.get(`/usuarios${uniqueSuffix}`).catch(() => ({ data: [] }))
       ]);
       setEmpresas(empRes.data);
       setMantenimientos(mantRes.data);
       setTecnicos(tecRes.data);
+      setUsuarios(userRes.data);
     } catch (e) {
       console.error("Error loading data", e);
     }
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { 
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('pmo_user');
+      const token = localStorage.getItem('pmo_token');
+      
+      if (!token || !storedUser) {
+        router.push('/login');
+        return;
+      }
+
+      const userData = JSON.parse(storedUser);
+      if (userData.role !== 'ADMIN') {
+        router.push('/tecnico');
+        return;
+      }
+      setUser(userData);
+      loadData(); 
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('pmo_token');
+    localStorage.removeItem('pmo_user');
+    router.push('/login');
+  };
 
   const handleCreateEmpresa = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,9 +113,11 @@ export default function AdminDashboard() {
     try {
       await api.post("/tecnicos", tecData);
       setOpenAddTecnico(false);
-      setTecData({ nombre: "", especialidad: "" });
+      setTecData({ nombre: "", especialidad: "", username: "", password: "" });
       loadData();
-    } catch (err: any) { alert("Error al registrar técnico"); }
+    } catch (err: any) { 
+      alert("Error al registrar técnico: " + (err.response?.data?.error || err.message)); 
+    }
   };
 
   const handleDeleteEmpresa = async (id: number) => {
@@ -109,6 +144,32 @@ export default function AdminDashboard() {
       setEditTecnico(null);
       loadData();
     } catch { alert("Error al editar técnico"); }
+  };
+
+  const handleCreateUsuario = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post('/usuarios', userEditData);
+      setOpenAddUsuario(false);
+      setUserEditData({ nombre: "", username: "", password: "", role: "TECNICO" });
+      loadData();
+    } catch (err: any) { alert("Error al crear usuario: " + (err.response?.data?.error || err.message)); }
+  };
+
+  const handleUpdateUsuario = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.put(`/usuarios/${editUsuario.id}`, userEditData);
+      setEditUsuario(null);
+      loadData();
+    } catch (err: any) { alert("Error al actualizar usuario: " + (err.response?.data?.error || err.message)); }
+  };
+
+  const handleDeleteUsuario = async (id: number) => {
+    try {
+      await api.delete(`/usuarios/${id}`);
+      loadData();
+    } catch (err: any) { alert("Error al eliminar usuario: " + (err.response?.data?.error || err.message)); }
   };
 
   const handleDeleteTecnico = async (id: number) => {
@@ -201,26 +262,76 @@ export default function AdminDashboard() {
 
   return (
     <div className="container mx-auto p-4 sm:p-6 space-y-6 max-w-[1400px]">
-      <div className="flex flex-col items-center justify-center text-center space-y-2 mb-6 bg-white p-6 rounded-2xl shadow-xl border border-slate-200">
+      <div className="flex flex-col items-center justify-center text-center space-y-2 mb-6 bg-white p-6 rounded-2xl shadow-xl border border-slate-200 relative">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="absolute right-6 top-6 text-slate-500 hover:text-red-500 transition-colors"
+          onClick={handleLogout}
+        >
+          <LogOut className="h-4 w-4 mr-2" /> Salir
+        </Button>
+
         <h2 className="text-3xl font-extrabold tracking-tight text-black flex items-center gap-2">
           <span className="p-2 bg-blue-600 rounded-md shadow-lg"><Settings className="h-6 w-6 text-white" /></span>
           PMO Maintenance Admin
         </h2>
         <div className="h-1 w-24 bg-blue-600 rounded-full"></div>
-        <p className="text-slate-600 font-medium text-sm">Panel de Control & Gestión de Activos</p>
+        <p className="text-slate-600 font-medium text-sm flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-blue-500" />
+          Panel de Control - Bienvenido, <span className="text-blue-700 font-bold">{user?.username}</span>
+        </p>
       </div>
 
 
 
-      <Tabs defaultValue="dashboard" className="space-y-6 border-none flex flex-col items-center">
-        <TabsList className="bg-[#1E293B] border border-slate-700 h-11 p-1 inline-flex mx-auto">
-          <TabsTrigger value="dashboard" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white px-6">Dashboard KPI</TabsTrigger>
-          <TabsTrigger value="administracion" className="data-[state=active]:bg-sky-600 data-[state=active]:text-white px-6">Administración & Recursos</TabsTrigger>
-          <TabsTrigger value="cronograma" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white px-6">Visión Gantt Anual</TabsTrigger>
-        </TabsList>
+      
+      <div className="flex flex-col md:flex-row gap-6 w-full">
+        {/* SIDEBAR */}
+        <div className="w-full md:w-64 flex-shrink-0">
+          <div className="bg-[#1E293B] border border-slate-700 rounded-xl p-4 sticky top-6 flex flex-col gap-2 shadow-2xl">
+            <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2 px-2">Navegación</h3>
+            
+            <button 
+              onClick={() => setActiveSection("dashboard")}
+              className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left transition-all duration-200 ${activeSection === "dashboard" ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+            >
+              <LayoutDashboard className="h-5 w-5" />
+              <span className="font-medium">Dashboard KPI</span>
+            </button>
+            
+            <button 
+              onClick={() => setActiveSection("administracion")}
+              className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left transition-all duration-200 ${activeSection === "administracion" ? "bg-sky-600 text-white shadow-lg shadow-sky-900/50" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+            >
+              <Briefcase className="h-5 w-5" />
+              <span className="font-medium">Administración</span>
+            </button>
+            
+            <button 
+              onClick={() => setActiveSection("cronograma")}
+              className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left transition-all duration-200 ${activeSection === "cronograma" ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/50" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+            >
+              <CalendarDays className="h-5 w-5" />
+              <span className="font-medium">Visión Gantt</span>
+            </button>
+
+            <button 
+              onClick={() => setActiveSection("usuarios")}
+              className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left transition-all duration-200 ${activeSection === "usuarios" ? "bg-purple-600 text-white shadow-lg shadow-purple-900/50" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+            >
+              <Users className="h-5 w-5" />
+              <span className="font-medium">Usuarios</span>
+            </button>
+          </div>
+        </div>
         
-        {/* TAB: DASHBOARD */}
-        <TabsContent value="dashboard" className="w-full space-y-4 outline-none border-none mt-2 animate-in fade-in slide-in-from-bottom-2">
+        {/* MAIN CONTENT AREA */}
+        <div className="flex-1 w-full min-w-0">
+
+{/* TAB: DASHBOARD */}
+        {activeSection === "dashboard" && (
+          <div className="w-full space-y-4 animate-in fade-in slide-in-from-bottom-2">
           {/* TOP KPIs */}
           <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-5">
             <Card className="bg-[#1E293B] border-slate-700 relative overflow-hidden flex items-center p-4">
@@ -391,21 +502,31 @@ export default function AdminDashboard() {
                </div>
             </Card>
           </div>
-        </TabsContent>
+                  </div>
+        )}
 
-        {/* TAB: ADMINISTRACION & CARDS */}
-        <TabsContent value="administracion" className="w-full space-y-6 outline-none border-none mt-6 animate-in fade-in slide-in-from-bottom-2">
+        {/* SECCION: ADMINISTRACION & CARDS */}
+        {activeSection === "administracion" && (
+          <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-2">
            <div className="flex justify-center gap-3">
              <Dialog open={openAddTecnico} onOpenChange={setOpenAddTecnico}>
               <DialogTrigger render={<Button variant="outline" className="border-sky-600 text-sky-500 hover:bg-sky-900/40"><UserPlus className="mr-2 h-4 w-4" /> Registrar Técnico</Button>} />
-             <DialogContent className="border-slate-700 bg-[#1E293B]">
-                 <DialogHeader><DialogTitle className="text-sky-400">Nuevo Técnico Asignable</DialogTitle></DialogHeader>
-                 <form onSubmit={handleCreateTecnico} className="space-y-4">
-                   <Input placeholder="Nombre Completo" required value={tecData.nombre} onChange={e => setTecData({ ...tecData, nombre: e.target.value })} className="bg-slate-900/50 border-slate-700 text-white" />
-                   <Input placeholder="Especialidad Técnica" value={tecData.especialidad} onChange={e => setTecData({ ...tecData, especialidad: e.target.value })} className="bg-slate-900/50 border-slate-700 text-white" />
-                   <Button type="submit" className="bg-sky-600 hover:bg-sky-700 w-full">Guardar Técnico</Button>
-                 </form>
-               </DialogContent>
+                <DialogContent className="border-slate-700 bg-[#1E293B] text-white">
+                  <DialogHeader><DialogTitle className="text-sky-400">Nuevo Técnico Asignable</DialogTitle></DialogHeader>
+                  <form onSubmit={handleCreateTecnico} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Información Personal</Label>
+                      <Input placeholder="Nombre Completo" required value={tecData.nombre} onChange={e => setTecData({ ...tecData, nombre: e.target.value })} className="bg-slate-900/50 border-slate-700 text-white" />
+                      <Input placeholder="Especialidad Técnica" value={tecData.especialidad} onChange={e => setTecData({ ...tecData, especialidad: e.target.value })} className="bg-slate-900/50 border-slate-700 text-white" />
+                    </div>
+                    <div className="space-y-2 pt-2 border-t border-slate-700">
+                      <Label className="text-sky-400">Credenciales de Acceso</Label>
+                      <Input placeholder="Nombre de Usuario" required value={tecData.username} onChange={e => setTecData({ ...tecData, username: e.target.value })} className="bg-slate-900/50 border-slate-700 text-white" />
+                      <Input type="password" placeholder="Contraseña" required value={tecData.password} onChange={e => setTecData({ ...tecData, password: e.target.value })} className="bg-slate-900/50 border-slate-700 text-white" />
+                    </div>
+                    <Button type="submit" className="bg-sky-600 hover:bg-sky-700 w-full mt-4">Registrar y Crear Cuenta</Button>
+                  </form>
+                </DialogContent>
              </Dialog>
 
              <Dialog open={openAdd} onOpenChange={setOpenAdd}>
@@ -496,50 +617,6 @@ export default function AdminDashboard() {
                         </TableCell>
                       </TableRow>
                    )})}
-                 </TableBody>
-               </Table>
-             </CardContent>
-           </Card>
-
-           {/* VISTA DIRECTORIO DE TÉCNICOS */}
-           <Card className="bg-[#1E293B] border-slate-700 mt-6">
-             <CardHeader className="pb-3 border-b border-slate-700/50">
-               <CardTitle className="text-white text-lg flex items-center gap-2"><UserPlus className="h-5 w-5 text-sky-500" /> Directorio de Técnicos</CardTitle>
-             </CardHeader>
-             <CardContent className="p-0 overflow-x-auto">
-               <Table>
-                 <TableHeader className="bg-slate-900/40">
-                   <TableRow className="border-slate-700/50">
-                     <TableHead className="text-slate-300">ID Técnico</TableHead>
-                     <TableHead className="text-slate-300">Nombre Completo</TableHead>
-                     <TableHead className="text-slate-300">Especialidad</TableHead>
-                     <TableHead className="text-right text-slate-300">Acciones</TableHead>
-                   </TableRow>
-                 </TableHeader>
-                 <TableBody>
-                   {tecnicos.map((tec: any) => (
-                      <TableRow key={tec.id} className="border-slate-700/50 hover:bg-slate-800/50">
-                        <TableCell className="text-slate-200 text-xs">TEC-{tec.id}</TableCell>
-                        <TableCell className="font-semibold text-white">{tec.nombre}</TableCell>
-                        <TableCell className="text-slate-300">{tec.especialidad || "-"}</TableCell>
-                        <TableCell className="text-right">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-sky-500 hover:text-sky-400 hover:bg-sky-500/20" onClick={() => setEditTecnico(tec)}><Edit className="h-4 w-4" /></Button>
-                            <Dialog open={openDeleteTecnico === tec.id} onOpenChange={(open) => !open && setOpenDeleteTecnico(null)}>
-                              <DialogTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-500/20" onClick={() => setOpenDeleteTecnico(tec.id)}><Trash2 className="h-4 w-4" /></Button>} />
-                              <DialogContent className="bg-[#1E293B] border-slate-700 text-white">
-                                <DialogHeader><DialogTitle className="text-red-500 flex items-center gap-2"><AlertTriangle/> Borrar "{tec.nombre}"</DialogTitle></DialogHeader>
-                                <p className="text-slate-300 font-sm">Se borrará permanentemente el registro del técnico. Podría afectar históricos si ya existen.</p>
-                                <DialogFooter><Button variant="destructive" onClick={() => handleDeleteTecnico(tec.id)}>Confirmar Borrado</Button></DialogFooter>
-                              </DialogContent>
-                            </Dialog>
-                        </TableCell>
-                      </TableRow>
-                   ))}
-                   {tecnicos.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="py-8 text-center text-slate-200">No hay técnicos registrados.</TableCell>
-                      </TableRow>
-                   )}
                  </TableBody>
                </Table>
              </CardContent>
@@ -732,13 +809,210 @@ export default function AdminDashboard() {
                 </Table>
               </div>
            </div>
-        </TabsContent>
+                  </div>
+        )}
 
-        {/* TAB: CRONOGRAMA GANTT */}
-        <TabsContent value="cronograma" className="w-full space-y-4 outline-none border-none mt-6 animate-in fade-in slide-in-from-bottom-2">
+        {/* SECCION: CRONOGRAMA GANTT */}
+        {activeSection === "cronograma" && (
+          <div className="w-full space-y-4 animate-in fade-in slide-in-from-bottom-2">
            <Cronograma empresas={empresas} mantenimientos={mantenimientosFiltrados} />
-        </TabsContent>
-      </Tabs>
+                  </div>
+        )}
+
+        {/* SECCION: USUARIOS */}
+        {activeSection === "usuarios" && (
+          <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-2">
+           <div className="flex justify-between items-center bg-[#1E293B] p-4 rounded-xl border border-slate-700 shadow-lg">
+             <div>
+               <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                 <ShieldCheck className="h-5 w-5 text-purple-500" /> Control de Credenciales
+               </h3>
+               <p className="text-slate-400 text-xs">Gestione accesos, roles y contraseñas del personal.</p>
+             </div>
+             
+             <Dialog open={openAddUsuario} onOpenChange={setOpenAddUsuario}>
+               <DialogTrigger render={<Button className="bg-purple-600 hover:bg-purple-700 text-white"><UserPlus className="mr-2 h-4 w-4" /> Registrar Usuario</Button>} />
+               <DialogContent className="bg-[#1E293B] border-slate-700 text-white">
+                 <DialogHeader>
+                   <DialogTitle className="text-purple-400">Nuevo Usuario del Sistema</DialogTitle>
+                 </DialogHeader>
+                 <form onSubmit={handleCreateUsuario} className="space-y-4 py-4 text-slate-200">
+                   <div className="space-y-2">
+                     <Label>Nombre Completo (Vinculado a Técnico)</Label>
+                     <Input required value={userEditData.nombre} onChange={(e) => setUserEditData({ ...userEditData, nombre: e.target.value })} className="bg-slate-900/50 border-slate-700" placeholder="Ej: Juan Pérez" />
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-2">
+                       <Label>Usuario</Label>
+                       <Input required value={userEditData.username} onChange={(e) => setUserEditData({ ...userEditData, username: e.target.value })} className="bg-slate-900/50 border-slate-700" placeholder="jperez" />
+                     </div>
+                     <div className="space-y-2">
+                       <Label>Contraseña</Label>
+                       <Input type="password" required value={userEditData.password} onChange={(e) => setUserEditData({ ...userEditData, password: e.target.value })} className="bg-slate-900/50 border-slate-700" placeholder="••••••••" />
+                     </div>
+                   </div>
+                   <div className="space-y-2">
+                     <Label>Rol del Sistema</Label>
+                     <Select value={userEditData.role} onValueChange={(val) => setUserEditData({ ...userEditData, role: val })}>
+                       <SelectTrigger className="bg-slate-900/50 border-slate-700"><SelectValue /></SelectTrigger>
+                       <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                         <SelectItem value="TECNICO">TÉCNICO DE CAMPO</SelectItem>
+                         <SelectItem value="ADMIN">ADMINISTRADOR</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
+                   <DialogFooter>
+                     <Button type="submit" className="bg-purple-600 hover:bg-purple-700 w-full mt-2">Crear Cuenta de Acceso</Button>
+                   </DialogFooter>
+                 </form>
+               </DialogContent>
+             </Dialog>
+           </div>
+
+           <Card className="bg-[#1E293B] border-slate-700">
+             <CardContent className="p-0 overflow-x-auto">
+               <Table>
+                 <TableHeader className="bg-slate-900/40">
+                   <TableRow className="border-slate-700/50">
+                     <TableHead className="text-slate-300">Personal (Vínculo)</TableHead>
+                     <TableHead className="text-slate-300">Usuario Acceso</TableHead>
+                     <TableHead className="text-slate-300">Rol</TableHead>
+                     <TableHead className="text-right text-slate-300">Acciones</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {usuarios.map((u: any) => (
+                      <TableRow key={u.id} className="border-slate-700/50 hover:bg-slate-800/50">
+                        <TableCell className="text-slate-300 text-sm">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-white uppercase">{u.Tecnico ? u.Tecnico.nombre : "ADMINISTRADOR"}</span>
+                            <span className="text-[10px] text-slate-500 italic">ID DB: {u.id}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-sky-400">{u.username}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={u.role === 'ADMIN' ? 'text-purple-400 border-purple-500/30 bg-purple-500/10' : 'text-sky-400 border-sky-500/30 bg-sky-500/10'}>
+                            {u.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-sky-500 hover:text-sky-400 hover:bg-sky-500/20" 
+                              onClick={() => {
+                                setEditUsuario(u);
+                                setUserEditData({ 
+                                  nombre: u.Tecnico ? u.Tecnico.nombre : "", 
+                                  username: u.username, 
+                                  password: "", 
+                                  role: u.role 
+                                });
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-500/20" 
+                              onClick={() => {
+                                if (confirm(`¿Está seguro de eliminar al usuario "${u.username}"?`)) {
+                                  handleDeleteUsuario(u.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </TableCell>
+                      </TableRow>
+                   ))}
+                 </TableBody>
+               </Table>
+             </CardContent>
+           </Card>
+
+           {/* VISTA DIRECTORIO DE TÉCNICOS */}
+           <Card className="bg-[#1E293B] border-slate-700 mt-6">
+             <CardHeader className="pb-3 border-b border-slate-700/50">
+               <CardTitle className="text-white text-lg flex items-center gap-2"><UserPlus className="h-5 w-5 text-sky-500" /> Directorio de Técnicos</CardTitle>
+             </CardHeader>
+             <CardContent className="p-0 overflow-x-auto">
+               <Table>
+                 <TableHeader className="bg-slate-900/40">
+                   <TableRow className="border-slate-700/50">
+                     <TableHead className="text-slate-300">ID Técnico</TableHead>
+                     <TableHead className="text-slate-300">Nombre Completo</TableHead>
+                     <TableHead className="text-slate-300">Especialidad</TableHead>
+                     <TableHead className="text-right text-slate-300">Acciones</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {tecnicos.map((tec: any) => (
+                      <TableRow key={tec.id} className="border-slate-700/50 hover:bg-slate-800/50">
+                        <TableCell className="text-slate-200 text-xs">TEC-{tec.id}</TableCell>
+                        <TableCell className="font-semibold text-white">{tec.nombre}</TableCell>
+                        <TableCell className="text-slate-300">{tec.especialidad || "-"}</TableCell>
+                        <TableCell className="text-right">
+                             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 cursor-not-allowed"><Info className="h-4 w-4" /></Button>
+                        </TableCell>
+                      </TableRow>
+                   ))}
+                   {tecnicos.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-8 text-center text-slate-200">No hay técnicos registrados.</TableCell>
+                      </TableRow>
+                   )}
+                 </TableBody>
+               </Table>
+             </CardContent>
+           </Card>
+
+           
+           {/* EDIT USUARIO MODAL */}
+           <Dialog open={!!editUsuario} onOpenChange={(open) => !open && setEditUsuario(null)}>
+             <DialogContent className="bg-[#1E293B] border-slate-700 text-white">
+               <DialogHeader>
+                 <DialogTitle>Editar Credenciales: {editUsuario?.username}</DialogTitle>
+                 <DialogDescription className="text-slate-400">Actualice el nombre, usuario o restablezca la contraseña.</DialogDescription>
+               </DialogHeader>
+               {editUsuario && (
+                 <form onSubmit={handleUpdateUsuario} className="space-y-4 py-4 text-slate-200">
+                   <div className="space-y-2">
+                     <Label>Nombre Completo</Label>
+                     <Input required value={userEditData.nombre} onChange={(e) => setUserEditData({ ...userEditData, nombre: e.target.value })} className="bg-slate-900/50 border-slate-700" />
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-2">
+                       <Label>Usuario</Label>
+                       <Input required value={userEditData.username} onChange={(e) => setUserEditData({ ...userEditData, username: e.target.value })} className="bg-slate-900/50 border-slate-700" />
+                     </div>
+                     <div className="space-y-2">
+                       <Label>Rol</Label>
+                       <Select value={userEditData.role} onValueChange={(val) => setUserEditData({ ...userEditData, role: val })}>
+                         <SelectTrigger className="bg-slate-900/50 border-slate-700"><SelectValue /></SelectTrigger>
+                         <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                           <SelectItem value="ADMIN">ADMIN</SelectItem>
+                           <SelectItem value="TECNICO">TÉCNICO</SelectItem>
+                         </SelectContent>
+                       </Select>
+                     </div>
+                   </div>
+                   <div className="space-y-2">
+                     <Label>Nueva Contraseña (vacío para mantener)</Label>
+                     <Input type="password" value={userEditData.password} onChange={(e) => setUserEditData({ ...userEditData, password: e.target.value })} className="bg-slate-900/50 border-slate-700" placeholder="••••••••" />
+                   </div>
+                   <DialogFooter>
+                     <Button type="submit" className="bg-purple-600 hover:bg-purple-700 w-full mt-2">Guardar Cambios</Button>
+                   </DialogFooter>
+                 </form>
+               )}
+             </DialogContent>
+           </Dialog>
+                  </div>
+        )}
+        </div>
+      </div>
     </div>
   );
 }

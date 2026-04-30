@@ -1,7 +1,11 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { Empresa, Activo, Mantenimiento, Tecnico, sequelize } = require('./models');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { Empresa, Activo, Mantenimiento, Tecnico, Usuario, sequelize } = require('./models');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'pmo_fallback_secret';
 
 const app = express();
 app.use(cors());
@@ -9,17 +13,92 @@ app.use(express.json());
 
 app.get('/', (req, res) => res.send({ message: 'API Backend Node.js Express Activo' }));
 
+// --- Middleware de Autenticación ---
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.status(401).json({ error: "Acceso denegado. Token no proporcionado." });
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: "Token inválido o expirado." });
+    req.user = user;
+    next();
+  });
+};
+
+const authorizeRole = (roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: "No tienes permisos para realizar esta acción." });
+    }
+    next();
+  };
+};
+
+// --- Endpoints de Autenticación ---
+app.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const user = await Usuario.findOne({ 
+      where: { username },
+      include: [ { model: Tecnico } ]
+    });
+
+    if (!user) return res.status(401).json({ error: "Usuario o contraseña incorrectos." });
+
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) return res.status(401).json({ error: "Usuario o contraseña incorrectos." });
+
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role, tecnico_id: user.tecnico_id },
+      JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    res.json({ 
+      token, 
+      user: { 
+        id: user.id, 
+        username: user.username, 
+        role: user.role,
+        tecnico: user.Tecnico ? user.Tecnico.nombre : null
+      } 
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- Endpoints Tecnicos ---
 app.get('/tecnicos', async (req, res) => {
   const tecnicos = await Tecnico.findAll();
   res.json(tecnicos);
 });
 
-app.post('/tecnicos', async (req, res) => {
+app.post('/tecnicos', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+  const t = await sequelize.transaction();
   try {
-    const tecnico = await Tecnico.create(req.body);
+    const { nombre, especialidad, username, password } = req.body;
+    
+    // Crear Técnico
+    const tecnico = await Tecnico.create({ nombre, especialidad }, { transaction: t });
+    
+    // Crear Usuario si se proporcionaron credenciales
+    if (username && password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await Usuario.create({
+        username,
+        password: hashedPassword,
+        role: 'TECNICO',
+        tecnico_id: tecnico.id
+      }, { transaction: t });
+    }
+
+    await t.commit();
     res.status(201).json(tecnico);
   } catch (error) {
+    await t.rollback();
     res.status(400).json({ error: error.message });
   }
 });
@@ -40,6 +119,86 @@ app.delete('/tecnicos/:id', async (req, res) => {
   try {
     await Tecnico.destroy({ where: { id: req.params.id } });
     res.json({ message: 'Tecnico eliminado' });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// --- Endpoints Usuarios ---
+app.get('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+  try {
+    const usuarios = await Usuario.findAll({
+      include: [ { model: Tecnico } ]
+    });
+    res.json(usuarios);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+  try {
+    const { username, password, role, nombre } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Si se especifica un nombre, creamos un técnico también si el rol es TECNICO
+    let tecnico_id = null;
+    if (role === 'TECNICO' && nombre) {
+      const tecnico = await Tecnico.create({ nombre });
+      tecnico_id = tecnico.id;
+    }
+
+    const usuario = await Usuario.create({
+      username,
+      password: hashedPassword,
+      role,
+      tecnico_id
+    });
+
+    res.status(201).json(usuario);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.put('/usuarios/:id', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, password, role, nombre } = req.body;
+    const user = await Usuario.findByPk(id, { include: [Tecnico] });
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+
+    let updateData = { username, role };
+    if (password && password.trim() !== "") {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    await user.update(updateData);
+
+    // Si tiene un técnico vinculado, actualizar su nombre
+    if (user.Tecnico && nombre) {
+      await user.Tecnico.update({ nombre });
+    }
+
+    res.json({ message: "Usuario actualizado con éxito" });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.delete('/usuarios/:id', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await Usuario.findByPk(id);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+
+    // Si es el usuario actual, no permitir borrarlo
+    if (user.id === req.user.id) {
+      return res.status(400).json({ error: "No puedes eliminar tu propio usuario" });
+    }
+
+    await user.destroy();
+    res.json({ message: "Usuario eliminado" });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -66,7 +225,7 @@ app.post('/empresas', async (req, res) => {
       const [year, month, day] = fecha_inicio.split('-');
       let currentObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
       
-      const iterations = Math.floor(12 / frecMeses);
+      const iterations = Math.floor(36 / frecMeses);
       const generatedDates = [];
 
       for (let i = 0; i < iterations; i++) {
@@ -123,7 +282,7 @@ app.put('/empresas/:id', async (req, res) => {
       if (tecnicoAsignado === 'none' || tecnicoAsignado === '') tecnicoAsignado = null;
       
       const [year, month, day] = fecha_inicio.split('-');
-      const iterations = Math.floor(12 / frecMeses);
+      const iterations = Math.floor(36 / frecMeses);
       
       // Mantenemos memoria de los ejecutados para no sobreescribirlos
       const ejecutados = await Mantenimiento.findAll({ where: { empresa_id: id, estado: 'EJECUTADO' }});
@@ -199,22 +358,34 @@ app.post('/activos', async (req, res) => {
   }
 });
 
+// Helper for VENCIDO logic
+const updateVencidos = async () => {
+    const { Op } = require('sequelize');
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    await Mantenimiento.update(
+      { estado: 'VENCIDO' },
+      {
+        where: {
+          estado: 'PENDIENTE',
+          fecha_programada: {
+            [Op.lt]: todayStr
+          }
+        }
+      }
+    );
+};
+
 // --- Endpoints Mantenimientos ---
 app.get('/mantenimientos', async (req, res) => {
-  // Primero actualizar los VENCIDOS dinámicamente
   await updateVencidos();
-
-  // Luego hacer la consulta normal
   const mantenimientos = await Mantenimiento.findAll({ include: Empresa });
   res.json(mantenimientos);
 });
 
 app.post('/mantenimientos', async (req, res) => {
   try {
-    // Para V2, este endpoint es para crear mantenimientos puntuales o personalizados.
-    const dateStr = req.body.fecha_programada;
-    if (!dateStr) return res.status(400).json({ error: "fecha_programada requerida" });
-    
     const mantenimiento = await Mantenimiento.create({ ...req.body, estado: req.body.estado || 'PENDIENTE' });
     res.status(201).json(mantenimiento);
   } catch (error) {
@@ -227,7 +398,6 @@ app.put('/mantenimientos/:id', async (req, res) => {
     const act = await Mantenimiento.findByPk(req.params.id);
     if (!act) return res.status(404).json({ error: "No encontrado" });
     
-    // Si se pasa a EJECUTADO, usar la fecha enviada o la actual
     let payload = { ...req.body };
     if (payload.estado === "EJECUTADO" && act.estado !== "EJECUTADO") {
        payload.fecha_ejecucion = payload.fecha_ejecucion ? new Date(payload.fecha_ejecucion) : new Date();
@@ -252,47 +422,10 @@ app.delete('/mantenimientos/:id', async (req, res) => {
   }
 });
 
-// Helper for VENCIDO logic
-const updateVencidos = async () => {
-    const { Op } = require('sequelize');
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    
-    await Mantenimiento.update(
-      { estado: 'VENCIDO' },
-      {
-        where: {
-          estado: 'PENDIENTE',
-          fecha_programada: {
-            [Op.lt]: todayStr
-          }
-        }
-      }
-    );
-};
-
-app.get('/mantenimientos', async (req, res) => {
-  await updateVencidos();
-  const mantenimientos = await Mantenimiento.findAll({ include: Empresa });
-  res.json(mantenimientos);
-});
-
-app.put('/mantenimientos/:id', async (req, res) => {
-  try {
-    const mantenimiento = await Mantenimiento.findByPk(req.params.id);
-    if (!mantenimiento) return res.status(404).json({ error: 'Mantenimiento no encontrado' });
-    
-    await mantenimiento.update(req.body);
-    res.json(mantenimiento);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
 // Puerto e inicio de Servidor
 const PORT = process.env.PORT || 3001; // Usamos 3001 para que no choque con 3000 de React/Next
 
-sequelize.sync({ alter: true }).then(() => {
+sequelize.sync({ alter: false }).then(() => {
   console.log("Database connected and synchronized.");
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }).catch(err => {
