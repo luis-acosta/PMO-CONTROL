@@ -12,20 +12,7 @@ export function Navbar() {
           </span>
         </Link>
         <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
-          <nav className="flex items-center space-x-6 text-sm font-medium">
-            <Link
-              href="/admin"
-              className="transition-colors hover:text-foreground/80 text-foreground/60"
-            >
-              Portal Admin
-            </Link>
-            <Link
-              href="/tecnico"
-              className="transition-colors hover:text-foreground/80 text-foreground/60"
-            >
-              Tecnico Terreno
-            </Link>
-          </nav>
+          {/* Espacio reservado para acciones futuras en la navbar */}
         </div>
       </div>
     </header>
