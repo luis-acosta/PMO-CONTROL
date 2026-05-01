@@ -49,6 +49,7 @@ export default function AdminDashboard() {
   
   const [filtroMants, setFiltroMants] = useState<"TODOS"|"PENDIENTE"|"EJECUTADO"|"VENCIDO">("TODOS");
   const [filtroEmpresa, setFiltroEmpresa] = useState<string>("TODAS");
+  const [filtroAño, setFiltroAño] = useState<string>(new Date().getFullYear().toString());
   const [activeSection, setActiveSection] = useState<"dashboard" | "administracion" | "cronograma" | "usuarios">("dashboard");
 
   const loadData = async () => {
@@ -198,10 +199,17 @@ export default function AdminDashboard() {
   };
 
   /* KPIs Calculations */
-  const total = mantenimientos.length;
-  const ejecutados = mantenimientos.filter(m => m.estado === "EJECUTADO").length;
-  const pendientes = mantenimientos.filter(m => m.estado === "PENDIENTE").length;
-  const vencidos = mantenimientos.filter(m => m.estado === "VENCIDO").length;
+  const mantenimientosKPI = useMemo(() => {
+    return mantenimientos.filter(m => {
+       if (!m.fecha_programada) return false;
+       return m.fecha_programada.startsWith(filtroAño);
+    });
+  }, [mantenimientos, filtroAño]);
+
+  const total = mantenimientosKPI.length;
+  const ejecutados = mantenimientosKPI.filter(m => m.estado === "EJECUTADO").length;
+  const pendientes = mantenimientosKPI.filter(m => m.estado === "PENDIENTE").length;
+  const vencidos = mantenimientosKPI.filter(m => m.estado === "VENCIDO").length;
   const cumplimientoPercentage = total > 0 ? Math.round((ejecutados / total) * 100) : 0;
 
   const pieData = [
@@ -213,7 +221,7 @@ export default function AdminDashboard() {
     const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
     const workload = new Array(12).fill(0);
     const executed = new Array(12).fill(0);
-    mantenimientos.forEach(m => {
+    mantenimientosKPI.forEach(m => {
         if (!m.fecha_programada) return;
         const monthNum = parseISO(m.fecha_programada).getMonth();
         workload[monthNum] += 1;
@@ -222,16 +230,16 @@ export default function AdminDashboard() {
     return months.map((m, i) => ({
       name: m, total: workload[i], cumplimiento: workload[i] > 0 ? Math.round((executed[i] / workload[i]) * 100) : 0
     }));
-  }, [mantenimientos]);
+  }, [mantenimientosKPI]);
 
   const empresasList = useMemo(() => {
     const conteo: Record<string, number> = {};
-    mantenimientos.forEach(m => {
+    mantenimientosKPI.forEach(m => {
        const key = m.Empresa?.nombre || 'Desconocida';
        conteo[key] = (conteo[key] || 0) + 1;
     });
     return Object.entries(conteo).map(([name, count]) => ({ name, count })).sort((a,b) => b.count - a.count);
-  }, [mantenimientos]);
+  }, [mantenimientosKPI]);
 
   const mantenimientosFiltrados = useMemo(() => {
     return mantenimientos.filter(m => {
@@ -243,16 +251,16 @@ export default function AdminDashboard() {
   }, [mantenimientos, filtroMants, filtroEmpresa]);
 
   const vencidosList = useMemo(() => {
-    return mantenimientos.filter(m => m.estado === "VENCIDO")
+    return mantenimientosKPI.filter(m => m.estado === "VENCIDO")
       .sort((a,b) => new Date(b.fecha_programada).getTime() - new Date(a.fecha_programada).getTime())
       .slice(0, 2);
-  }, [mantenimientos]);
+  }, [mantenimientosKPI]);
 
   const proximosList = useMemo(() => {
-     return mantenimientos.filter(m => m.estado === "PENDIENTE")
+     return mantenimientosKPI.filter(m => m.estado === "PENDIENTE")
       .sort((a,b) => new Date(a.fecha_programada).getTime() - new Date(b.fecha_programada).getTime())
       .slice(0, 2);
-  }, [mantenimientos]);
+  }, [mantenimientosKPI]);
 
   const statusPieData = useMemo(() => [
     { name: 'Ejecutados', value: ejecutados, color: '#10b981' },
@@ -332,6 +340,25 @@ export default function AdminDashboard() {
 {/* TAB: DASHBOARD */}
         {activeSection === "dashboard" && (
           <div className="w-full space-y-4 animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex justify-between items-center bg-[#1E293B] p-4 rounded-xl border border-slate-700 shadow-lg">
+              <h3 className="text-white font-semibold text-lg">Resumen de Indicadores</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-300 text-sm font-medium">Año:</span>
+                <Select value={filtroAño} onValueChange={setFiltroAño}>
+                  <SelectTrigger className="w-[100px] bg-slate-800 border-slate-600 text-slate-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                    {/* Generar años dinámicamente o fijos */}
+                    <SelectItem value="2025">2025</SelectItem>
+                    <SelectItem value="2026">2026</SelectItem>
+                    <SelectItem value="2027">2027</SelectItem>
+                    <SelectItem value="2028">2028</SelectItem>
+                    <SelectItem value="2029">2029</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           {/* TOP KPIs */}
           <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-5">
             <Card className="bg-[#1E293B] border-slate-700 relative overflow-hidden flex items-center p-4">
