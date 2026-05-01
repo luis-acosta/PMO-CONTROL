@@ -1,27 +1,6 @@
 version: "3.8"
 
 services:
-  traefik:
-    image: traefik:v2.10
-    restart: always
-    command:
-      - "--api.insecure=false"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.letsencryptresolver.acme.tlschallenge=true"
-      - "--certificatesresolvers.letsencryptresolver.acme.email=admin@pdiadvanced.cloud"
-      - "--certificatesresolvers.letsencryptresolver.acme.storage=/letsencrypt/acme.json"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "traefik_certs:/letsencrypt"
-    networks:
-      - pdinet
-
   db:
     image: postgres:15-alpine
     restart: always
@@ -46,10 +25,10 @@ services:
       - pdinet
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`api.mto.pdiadvanced.cloud`)"
-      - "traefik.http.routers.backend.entrypoints=websecure"
-      - "traefik.http.routers.backend.tls.certresolver=letsencryptresolver"
-      - "traefik.http.services.backend.loadbalancer.server.port=3001"
+      - "traefik.http.routers.pmo-backend.rule=Host(`api.mto.pdiadvanced.cloud`)"
+      - "traefik.http.routers.pmo-backend.entrypoints=websecure"
+      - "traefik.http.routers.pmo-backend.tls.certresolver=letsencryptresolver"
+      - "traefik.http.services.pmo-backend.loadbalancer.server.port=3001"
 
   frontend:
     image: ghcr.io/luis-acosta/pmo-control-frontend:main
@@ -60,14 +39,13 @@ services:
       - pdinet
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`mto.pdiadvanced.cloud`)"
-      - "traefik.http.routers.frontend.entrypoints=websecure"
-      - "traefik.http.routers.frontend.tls.certresolver=letsencryptresolver"
-      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+      - "traefik.http.routers.pmo-frontend.rule=Host(`mto.pdiadvanced.cloud`)"
+      - "traefik.http.routers.pmo-frontend.entrypoints=websecure"
+      - "traefik.http.routers.pmo-frontend.tls.certresolver=letsencryptresolver"
+      - "traefik.http.services.pmo-frontend.loadbalancer.server.port=3000"
 
 volumes:
   postgres_data:
-  traefik_certs:
 
 networks:
   pdinet:
