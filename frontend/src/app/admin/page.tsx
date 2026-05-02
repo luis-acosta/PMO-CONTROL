@@ -344,7 +344,7 @@ export default function AdminDashboard() {
               <h3 className="text-white font-semibold text-lg">Resumen de Indicadores</h3>
               <div className="flex items-center gap-2">
                 <span className="text-slate-300 text-sm font-medium">Año:</span>
-                <Select value={filtroAño} onValueChange={setFiltroAño}>
+                <Select value={filtroAño} onValueChange={(val) => val && setFiltroAño(val)}>
                   <SelectTrigger className="w-[100px] bg-slate-800 border-slate-600 text-slate-200">
                     <SelectValue />
                   </SelectTrigger>
@@ -880,7 +880,7 @@ export default function AdminDashboard() {
                    </div>
                    <div className="space-y-2">
                      <Label>Rol del Sistema</Label>
-                     <Select value={userEditData.role} onValueChange={(val) => setUserEditData({ ...userEditData, role: val })}>
+                     <Select value={userEditData.role} onValueChange={(val) => setUserEditData({ ...userEditData, role: val || userEditData.role })}>
                        <SelectTrigger className="bg-slate-900/50 border-slate-700"><SelectValue /></SelectTrigger>
                        <SelectContent className="bg-slate-800 border-slate-700 text-white">
                          <SelectItem value="TECNICO">TÉCNICO DE CAMPO</SelectItem>
@@ -1016,7 +1016,7 @@ export default function AdminDashboard() {
                      </div>
                      <div className="space-y-2">
                        <Label>Rol</Label>
-                       <Select value={userEditData.role} onValueChange={(val) => setUserEditData({ ...userEditData, role: val })}>
+                       <Select value={userEditData.role} onValueChange={(val) => val && setUserEditData({ ...userEditData, role: val })}>
                          <SelectTrigger className="bg-slate-900/50 border-slate-700"><SelectValue /></SelectTrigger>
                          <SelectContent className="bg-slate-800 border-slate-700 text-white">
                            <SelectItem value="ADMIN">ADMIN</SelectItem>
