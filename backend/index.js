@@ -425,8 +425,24 @@ app.delete('/mantenimientos/:id', async (req, res) => {
 // Puerto e inicio de Servidor
 const PORT = process.env.PORT || 3001; // Usamos 3001 para que no choque con 3000 de React/Next
 
-sequelize.sync({ alter: false }).then(() => {
+sequelize.sync({ alter: false }).then(async () => {
   console.log("Database connected and synchronized.");
+
+  // --- Auto-seed: Crear usuario admin si no existe ---
+  try {
+    const adminExists = await Usuario.findOne({ where: { username: 'admin' } });
+    if (!adminExists) {
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      await Usuario.create({ username: 'admin', password: hashedPassword, role: 'ADMIN' });
+      console.log('✅ Usuario administrador inicial creado: admin / admin123');
+    } else {
+      console.log('ℹ️  Usuario admin ya existe, omitiendo seed.');
+    }
+  } catch (seedErr) {
+    console.error('⚠️  Error al crear usuario admin inicial:', seedErr.message);
+  }
+  // --- Fin auto-seed ---
+
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }).catch(err => {
   console.error("Failed to sync DB. Make sure PostgreSQL is running and DATABASE_URL is valid.", err);
