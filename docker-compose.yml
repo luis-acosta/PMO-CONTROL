@@ -31,8 +31,6 @@ services:
 
   frontend:
     image: ghcr.io/luis-acosta/pmo-control-frontend:main
-    environment:
-      BACKEND_URL: http://backend:3001
     networks:
       - pdinet
     deploy:

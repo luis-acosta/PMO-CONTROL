@@ -12,11 +12,10 @@ const nextConfig: any = {
     ]
   },
   async rewrites() {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
     return [
       {
         source: '/api/:path*',
-        destination: `${backendUrl}/:path*`,
+        destination: 'http://localhost:3001/:path*', // Proxy to Backend
       },
     ]
   },
