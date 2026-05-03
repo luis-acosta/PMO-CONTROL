@@ -1,55 +1,51 @@
-const { Empresa, Mantenimiento, sequelize } = require('./models');
-const path = require('path');
-const fs = require('fs');
+const bcrypt = require('bcryptjs');
+const { Empresa, Mantenimiento, Tecnico, Usuario } = require('./models');
 
-async function seedEmpresas() {
+async function seedInicial() {
   try {
-    const count = await Empresa.count();
-    if (count > 0) {
-      console.log(`ℹ️  Seed omitido: ya existen ${count} empresas en la base de datos.`);
-      return;
+    // --- Admin user (ya lo crea index.js, pero lo manejamos aquí también por consistencia) ---
+    const adminExists = await Usuario.findOne({ where: { username: 'admin' } });
+    if (!adminExists) {
+      const hash = await bcrypt.hash('admin123', 10);
+      await Usuario.create({ username: 'admin', password: hash, role: 'ADMIN' });
+      console.log('✅ Usuario admin creado: admin / admin123');
     }
 
-    console.log('🌱 Base de datos vacía. Cargando datos iniciales...');
-
-    const dataPath = path.join(__dirname, 'seed_data.json');
-    if (!fs.existsSync(dataPath)) {
-      console.warn('⚠️  seed_data.json no encontrado. Omitiendo seed de empresas.');
-      return;
+    // --- Técnico inicial ---
+    const tecnicoExists = await Tecnico.findOne({ where: { nombre: 'Técnico Demo' } });
+    if (!tecnicoExists) {
+      const tecnico = await Tecnico.create({ nombre: 'Técnico Demo', especialidad: 'Mantenimiento General' });
+      const hash = await bcrypt.hash('tecnico123', 10);
+      await Usuario.create({ username: 'tecnico', password: hash, role: 'TECNICO', tecnico_id: tecnico.id });
+      console.log('✅ Técnico demo creado: tecnico / tecnico123');
     }
 
-    const { empresas, mantenimientos } = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-
-    // Insertar empresas manteniendo sus IDs originales
-    for (const empresa of empresas) {
-      await Empresa.create({
-        id: empresa.id,
-        nombre: empresa.nombre,
-        fecha_inicio: empresa.fecha_inicio,
-        frecuencia_meses: empresa.frecuencia_meses,
-        dia_semana: empresa.dia_semana,
-        base_tecnico: empresa.base_tecnico,
+    // --- Empresa de demostración ---
+    const empresaExists = await Empresa.findOne({ where: { nombre: 'Empresa Demo' } });
+    if (!empresaExists) {
+      const empresa = await Empresa.create({
+        nombre: 'Empresa Demo',
+        fecha_inicio: '2026-01-01',
+        frecuencia_meses: 3,
+        dia_semana: 5, // Viernes
+        base_tecnico: 'Técnico Demo'
       });
+      // Generar 4 mantenimientos de ejemplo (uno por trimestre 2026)
+      const fechas = ['2026-01-02', '2026-04-03', '2026-07-03', '2026-10-02'];
+      for (const fecha of fechas) {
+        await Mantenimiento.create({
+          fecha_programada: fecha,
+          estado: 'PENDIENTE',
+          tecnico: 'Técnico Demo',
+          empresa_id: empresa.id
+        });
+      }
+      console.log('✅ Empresa demo creada con 4 mantenimientos de ejemplo');
     }
-    console.log(`✅ ${empresas.length} empresas insertadas.`);
-
-    // Insertar mantenimientos
-    for (const m of mantenimientos) {
-      await Mantenimiento.create({
-        id: m.id,
-        fecha_programada: m.fecha_programada,
-        estado: m.estado,
-        fecha_ejecucion: m.fecha_ejecucion || null,
-        tecnico: m.tecnico,
-        observaciones: m.observaciones || null,
-        empresa_id: m.empresa_id,
-      });
-    }
-    console.log(`✅ ${mantenimientos.length} mantenimientos insertados.`);
 
   } catch (err) {
-    console.error('⚠️  Error en seed de empresas:', err.message);
+    console.error('⚠️  Error en seed inicial:', err.message);
   }
 }
 
-module.exports = seedEmpresas;
+module.exports = seedInicial;
