@@ -1,7 +1,16 @@
 import axios from 'axios';
 
+// En producción (dominio real) llama directamente al backend público.
+// En desarrollo (localhost) usa el proxy de Next.js para evitar problemas de CORS.
+const getBaseURL = (): string => {
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return `https://api.${window.location.hostname}`;
+  }
+  return '/api';
+};
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: getBaseURL(),
 });
 
 // Interceptor para agregar el token JWT a todas las peticiones
