@@ -3,6 +3,7 @@ version: "3.8"
 services:
   db:
     image: postgres:15-alpine
+    container_name: pmo-db-container
     environment:
       POSTGRES_USER: pmo_user
       POSTGRES_PASSWORD: pmo_password
@@ -14,6 +15,7 @@ services:
 
   backend:
     image: ghcr.io/luis-acosta/pmo-control-backend:main
+    container_name: pmo-backend-container
     environment:
       DATABASE_URL: postgres://pmo_user:pmo_password@db:5432/pmo_db
       PORT: 3001
@@ -33,6 +35,7 @@ services:
 
   frontend:
     image: ghcr.io/luis-acosta/pmo-control-frontend:main
+    container_name: pmo-frontend-container
     environment:
       BACKEND_URL: http://backend:3001
     networks:
@@ -53,3 +56,4 @@ volumes:
 networks:
   pdinet:
     external: true
+
