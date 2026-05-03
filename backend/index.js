@@ -4,6 +4,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Empresa, Activo, Mantenimiento, Tecnico, Usuario, sequelize } = require('./models');
+const seedEmpresas = require('./seed_empresas');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'pmo_fallback_secret';
 
@@ -441,7 +442,11 @@ sequelize.sync({ alter: false }).then(async () => {
   } catch (seedErr) {
     console.error('⚠️  Error al crear usuario admin inicial:', seedErr.message);
   }
-  // --- Fin auto-seed ---
+  // --- Fin auto-seed admin ---
+
+  // --- Auto-seed: Cargar empresas y mantenimientos iniciales ---
+  await seedEmpresas();
+  // --- Fin auto-seed empresas ---
 
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }).catch(err => {
