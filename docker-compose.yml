@@ -17,6 +17,8 @@ services:
     environment:
       DATABASE_URL: postgres://pmo_user:pmo_password@db:5432/pmo_db
       PORT: 3001
+    depends_on:
+      - db
     networks:
       - pdinet
     deploy:
