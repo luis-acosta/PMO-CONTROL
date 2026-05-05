@@ -437,5 +437,6 @@ sequelize.sync({ alter: false }).then(async () => {
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }).catch(err => {
   console.error("Failed to sync DB. Make sure PostgreSQL is running and DATABASE_URL is valid.", err);
+  process.exit(1); // Exit so Docker can restart the container
 });
 
