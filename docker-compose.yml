@@ -15,7 +15,7 @@ services:
   backend:
     image: ghcr.io/luis-acosta/pmo-control-backend:main
     environment:
-      DATABASE_URL: postgres://pmo_user:pmo_password@pmo-control_db:5432/pmo_db
+      DATABASE_URL: postgres://pmo_user:pmo_password@db:5432/pmo_db
       PORT: 3001
     depends_on:
       - db
@@ -34,7 +34,7 @@ services:
   frontend:
     image: ghcr.io/luis-acosta/pmo-control-frontend:main
     environment:
-      BACKEND_URL: http://pmo-control_backend:3001
+      BACKEND_URL: http://backend:3001
     networks:
       - pdinet
     deploy:

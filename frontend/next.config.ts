@@ -15,7 +15,7 @@ const nextConfig: any = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:3001/:path*', // Proxy to Backend
+        destination: `${process.env.BACKEND_URL || 'http://localhost:3001'}/:path*`, // Proxy to Backend
       },
     ]
   },
