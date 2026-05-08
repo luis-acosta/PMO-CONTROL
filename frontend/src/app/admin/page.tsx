@@ -249,6 +249,11 @@ export default function AdminDashboard() {
       return matchEstado && matchEmpresa;
     });
   }, [mantenimientos, filtroMants, filtroEmpresa]);
+  
+  const empresasFiltradas = useMemo(() => {
+    if (filtroEmpresa === "TODAS") return empresas;
+    return empresas.filter(e => String(e.id) === filtroEmpresa);
+  }, [empresas, filtroEmpresa]);
 
   const vencidosList = useMemo(() => {
     return mantenimientosKPI.filter(m => m.estado === "VENCIDO")
@@ -850,7 +855,7 @@ export default function AdminDashboard() {
         {/* SECCION: CRONOGRAMA GANTT */}
         {activeSection === "cronograma" && (
           <div className="w-full space-y-4 animate-in fade-in slide-in-from-bottom-2">
-           <Cronograma empresas={empresas} mantenimientos={mantenimientosFiltrados} />
+           <Cronograma empresas={empresasFiltradas} mantenimientos={mantenimientosFiltrados} />
                   </div>
         )}
 
