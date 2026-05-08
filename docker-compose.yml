@@ -13,6 +13,7 @@ services:
       - pdinet
 
   app:
+    image: ghcr.io/luis-acosta/pmo-control-app:latest
     build:
       context: .
       dockerfile: Dockerfile
