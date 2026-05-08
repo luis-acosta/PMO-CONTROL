@@ -26,6 +26,7 @@ async function seedInicial() {
       const empresa = await Empresa.create({
         nombre: 'Empresa Demo',
         fecha_inicio: '2026-01-01',
+        fecha_fin: '2026-12-31',
         frecuencia_meses: 3,
         dia_semana: 5, // Viernes
         base_tecnico: 'Técnico Demo'

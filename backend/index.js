@@ -448,7 +448,7 @@ app.use((req, res) => {
 // Puerto e inicio de Servidor
 const PORT = process.env.PORT || 3001; // Usamos 3001 para que no choque con 3000 de React/Next
 
-sequelize.sync({ alter: false }).then(async () => {
+sequelize.sync({ alter: true }).then(async () => {
   console.log("Database connected and synchronized.");
 
   // --- Auto-seed: datos iniciales (admin, técnico, empresa demo) ---
