@@ -15,6 +15,10 @@ const Empresa = sequelize.define('Empresa', {
     type: DataTypes.DATEONLY,
     allowNull: true
   },
+  fecha_fin: {
+    type: DataTypes.DATEONLY,
+    allowNull: true
+  },
   frecuencia_meses: {
     type: DataTypes.INTEGER,
     defaultValue: 1

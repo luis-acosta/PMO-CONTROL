@@ -215,39 +215,44 @@ apiRouter.get('/empresas', async (req, res) => {
 
 apiRouter.post('/empresas', async (req, res) => {
   try {
-    const { nombre, fecha_inicio, frecuencia_meses, dia_semana, base_tecnico } = req.body;
+    const { nombre, fecha_inicio, fecha_fin, frecuencia_meses, dia_semana, base_tecnico } = req.body;
     
     // Crear Empresa
-    const empresa = await Empresa.create({ nombre, fecha_inicio, frecuencia_meses, dia_semana, base_tecnico });
+    const empresa = await Empresa.create({ nombre, fecha_inicio, fecha_fin, frecuencia_meses, dia_semana, base_tecnico });
     
     // Si se enviaron parámetros de agendamiento, procedemos a generar el cronograma
-    if (fecha_inicio && frecuencia_meses) {
+    if (fecha_inicio && fecha_fin && frecuencia_meses) {
       const frecMeses = parseInt(frecuencia_meses) || 1;
       const dSemana = parseInt(dia_semana) ?? 6;
       let tecnicoAsignado = base_tecnico || null;
+      
       const [year, month, day] = fecha_inicio.split('-');
       let currentObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
       
-      const iterations = Math.floor(36 / frecMeses);
+      const [fYear, fMonth, fDay] = fecha_fin.split('-');
+      const limitDate = new Date(parseInt(fYear), parseInt(fMonth) - 1, parseInt(fDay));
+      
       const generatedDates = [];
 
-      for (let i = 0; i < iterations; i++) {
-          // Ajustar al día de la semana correcto ANTES de evaluar
-          // Si el día actual no es el día de la semana pedido, lo corremos hacia adelante hasta que lo sea
-          while (currentObj.getDay() !== dSemana) {
-             currentObj.setDate(currentObj.getDate() + 1);
+      while (currentObj <= limitDate) {
+          // Ajustar al día de la semana correcto
+          let targetDate = new Date(currentObj);
+          while (targetDate.getDay() !== dSemana) {
+             targetDate.setDate(targetDate.getDate() + 1);
           }
 
-          const currentStr = currentObj.toISOString().split('T')[0];
-          
-          generatedDates.push({
-              empresa_id: empresa.id,
-              fecha_programada: currentStr,
-              estado: 'PENDIENTE',
-              tecnico: tecnicoAsignado
-          });
+          // Si después de ajustar el día, sigue dentro del límite
+          if (targetDate <= limitDate) {
+              const currentStr = targetDate.toISOString().split('T')[0];
+              generatedDates.push({
+                  empresa_id: empresa.id,
+                  fecha_programada: currentStr,
+                  estado: 'PENDIENTE',
+                  tecnico: tecnicoAsignado
+              });
+          }
 
-          // Calcular siguiente fecha agregando los meses para la próxima iteración
+          // Calcular siguiente fecha base agregando los meses
           currentObj.setMonth(currentObj.getMonth() + frecMeses);
       }
 
@@ -270,8 +275,8 @@ apiRouter.put('/empresas/:id', async (req, res) => {
     
     await empresa.update(req.body);
 
-    const { fecha_inicio, frecuencia_meses, dia_semana, base_tecnico } = req.body;
-    if (fecha_inicio && frecuencia_meses) {
+    const { fecha_inicio, fecha_fin, frecuencia_meses, dia_semana, base_tecnico } = req.body;
+    if (fecha_inicio && fecha_fin && frecuencia_meses) {
       await Mantenimiento.destroy({ 
         where: { 
           empresa_id: id, 
@@ -285,37 +290,43 @@ apiRouter.put('/empresas/:id', async (req, res) => {
       if (tecnicoAsignado === 'none' || tecnicoAsignado === '') tecnicoAsignado = null;
       
       const [year, month, day] = fecha_inicio.split('-');
-      const iterations = Math.floor(36 / frecMeses);
+      let currentObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+
+      const [fYear, fMonth, fDay] = fecha_fin.split('-');
+      const limitDate = new Date(parseInt(fYear), parseInt(fMonth) - 1, parseInt(fDay));
       
       // Mantenemos memoria de los ejecutados para no sobreescribirlos
       const ejecutados = await Mantenimiento.findAll({ where: { empresa_id: id, estado: 'EJECUTADO' }});
       const generatedDates = [];
 
-      for (let i = 0; i < iterations; i++) {
-          let targetDate = new Date(parseInt(year), (parseInt(month) - 1) + (i * frecMeses), parseInt(day));
+      while (currentObj <= limitDate) {
+          let targetDate = new Date(currentObj);
           
           while (targetDate.getDay() !== dSemana) {
               targetDate.setDate(targetDate.getDate() + 1);
           }
 
-          const targetStr = targetDate.toISOString().split('T')[0];
-          const trgMonth = targetDate.getMonth();
-          const trgYear = targetDate.getFullYear();
-          
-          // Verificar si ya hay un mantenimiento ejecutado este mismo mes y año
-          const yaEjecutado = ejecutados.some(ej => {
-             const ejDate = new Date(ej.fecha_programada + 'T00:00:00');
-             return ejDate.getMonth() === trgMonth && ejDate.getFullYear() === trgYear;
-          });
-
-          if (!yaEjecutado) {
-              generatedDates.push({
-                  empresa_id: empresa.id,
-                  fecha_programada: targetStr,
-                  estado: 'PENDIENTE',
-                  tecnico: tecnicoAsignado
+          if (targetDate <= limitDate) {
+              const targetStr = targetDate.toISOString().split('T')[0];
+              const trgMonth = targetDate.getMonth();
+              const trgYear = targetDate.getFullYear();
+              
+              // Verificar si ya hay un mantenimiento ejecutado este mismo mes y año
+              const yaEjecutado = ejecutados.some(ej => {
+                 const ejDate = new Date(ej.fecha_programada + 'T00:00:00');
+                 return ejDate.getMonth() === trgMonth && ejDate.getFullYear() === trgYear;
               });
+
+              if (!yaEjecutado) {
+                  generatedDates.push({
+                      empresa_id: empresa.id,
+                      fecha_programada: targetStr,
+                      estado: 'PENDIENTE',
+                      tecnico: tecnicoAsignado
+                  });
+              }
           }
+          currentObj.setMonth(currentObj.getMonth() + frecMeses);
       }
       
       if (generatedDates.length > 0) {

@@ -42,7 +42,7 @@ export default function AdminDashboard() {
     return days[date.getDay()];
   };
   
-  const [formData, setFormData] = useState({ nombre: "", fecha_inicio: "", frecuencia_meses: "1", dia_semana: "6", base_tecnico: "" });
+  const [formData, setFormData] = useState({ nombre: "", fecha_inicio: "", fecha_fin: "", frecuencia_meses: "1", dia_semana: "6", base_tecnico: "" });
   const [tecData, setTecData] = useState({ nombre: "", especialidad: "", username: "", password: "" });
   const [userEditData, setUserEditData] = useState({ nombre: "", username: "", password: "", role: "TECNICO" });
   const [saving, setSaving] = useState(false);
@@ -102,7 +102,7 @@ export default function AdminDashboard() {
     try {
       await api.post("/empresas", formData);
       setOpenAdd(false);
-      setFormData({ nombre: "", fecha_inicio: "", frecuencia_meses: "1", dia_semana: "6", base_tecnico: "" });
+      setFormData({ nombre: "", fecha_inicio: "", fecha_fin: "", frecuencia_meses: "1", dia_semana: "6", base_tecnico: "" });
       loadData();
     } catch (err: any) {
       alert("Error al crear empresa: " + (err.response?.data?.error || err.message));
@@ -569,15 +569,19 @@ export default function AdminDashboard() {
                      <div className="space-y-2">
                        <Label>Fecha Inicio</Label>
                        <Input type="date" required value={formData.fecha_inicio} onChange={(e) => {
-                          const newDate = e.target.value;
-                          let newDia = formData.dia_semana;
-                          if (newDate) {
-                            const [y, m, d] = newDate.split('-').map(Number);
-                            newDia = String(new Date(y, m - 1, d).getDay());
-                          }
-                          setFormData({ ...formData, fecha_inicio: newDate, dia_semana: newDia });
-                        }} className="bg-slate-900/50 border-slate-700" />
-                     </div>
+                           const newDate = e.target.value;
+                           let newDia = formData.dia_semana;
+                           if (newDate) {
+                             const [y, m, d] = newDate.split('-').map(Number);
+                             newDia = String(new Date(y, m - 1, d).getDay());
+                           }
+                           setFormData({ ...formData, fecha_inicio: newDate, dia_semana: newDia });
+                         }} className="bg-slate-900/50 border-slate-700" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Fecha Fin</Label>
+                        <Input type="date" required value={formData.fecha_fin} onChange={(e) => setFormData({ ...formData, fecha_fin: e.target.value })} className="bg-slate-900/50 border-slate-700" />
+                      </div>
                      <div className="space-y-2">
                        <Label>Frecuencia de Meses</Label>
                        <Select value={formData.frecuencia_meses} onValueChange={(val) => setFormData({ ...formData, frecuencia_meses: val || "1" })} required>
@@ -675,6 +679,10 @@ export default function AdminDashboard() {
                          className="bg-slate-900/50 border-slate-700" 
                        />
                      </div>
+                      <div className="space-y-2">
+                        <Label>Fecha Fin</Label>
+                        <Input type="date" required value={editEmpresa.fecha_fin || ""} onChange={(e) => setEditEmpresa({ ...editEmpresa, fecha_fin: e.target.value })} className="bg-slate-900/50 border-slate-700" />
+                      </div>
                      <div className="space-y-2">
                        <Label>Frecuencia de Meses</Label>
                        <Select value={String(editEmpresa.frecuencia_meses || "1")} onValueChange={(val) => setEditEmpresa({ ...editEmpresa, frecuencia_meses: val || "1" })} required>
