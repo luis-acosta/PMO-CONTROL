@@ -12,7 +12,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => res.send({ message: 'API Backend Node.js Express Activo' }));
+const apiRouter = express.Router();
+
+apiRouter.get('/', (req, res) => res.send({ message: 'API Backend Node.js Express Activo' }));
 
 // --- Middleware de Autenticación ---
 const authenticateToken = (req, res, next) => {
@@ -38,7 +40,7 @@ const authorizeRole = (roles) => {
 };
 
 // --- Endpoints de Autenticación ---
-app.post('/login', async (req, res) => {
+apiRouter.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     const user = await Usuario.findOne({ 
@@ -72,12 +74,12 @@ app.post('/login', async (req, res) => {
 });
 
 // --- Endpoints Tecnicos ---
-app.get('/tecnicos', async (req, res) => {
+apiRouter.get('/tecnicos', async (req, res) => {
   const tecnicos = await Tecnico.findAll();
   res.json(tecnicos);
 });
 
-app.post('/tecnicos', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+apiRouter.post('/tecnicos', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const { nombre, especialidad, username, password } = req.body;
@@ -104,7 +106,7 @@ app.post('/tecnicos', authenticateToken, authorizeRole(['ADMIN']), async (req, r
   }
 });
 
-app.put('/tecnicos/:id', async (req, res) => {
+apiRouter.put('/tecnicos/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const tecnico = await Tecnico.findByPk(id);
@@ -116,7 +118,7 @@ app.put('/tecnicos/:id', async (req, res) => {
   }
 });
 
-app.delete('/tecnicos/:id', async (req, res) => {
+apiRouter.delete('/tecnicos/:id', async (req, res) => {
   try {
     await Tecnico.destroy({ where: { id: req.params.id } });
     res.json({ message: 'Tecnico eliminado' });
@@ -126,7 +128,7 @@ app.delete('/tecnicos/:id', async (req, res) => {
 });
 
 // --- Endpoints Usuarios ---
-app.get('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+apiRouter.get('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const usuarios = await Usuario.findAll({
       include: [ { model: Tecnico } ]
@@ -137,7 +139,7 @@ app.get('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (req, re
   }
 });
 
-app.post('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+apiRouter.post('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const { username, password, role, nombre } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -162,7 +164,7 @@ app.post('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (req, r
   }
 });
 
-app.put('/usuarios/:id', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+apiRouter.put('/usuarios/:id', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const { id } = req.params;
     const { username, password, role, nombre } = req.body;
@@ -187,7 +189,7 @@ app.put('/usuarios/:id', authenticateToken, authorizeRole(['ADMIN']), async (req
   }
 });
 
-app.delete('/usuarios/:id', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+apiRouter.delete('/usuarios/:id', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const { id } = req.params;
     const user = await Usuario.findByPk(id);
@@ -206,12 +208,12 @@ app.delete('/usuarios/:id', authenticateToken, authorizeRole(['ADMIN']), async (
 });
 
 // --- Endpoints Empresas ---
-app.get('/empresas', async (req, res) => {
+apiRouter.get('/empresas', async (req, res) => {
   const empresas = await Empresa.findAll();
   res.json(empresas);
 });
 
-app.post('/empresas', async (req, res) => {
+apiRouter.post('/empresas', async (req, res) => {
   try {
     const { nombre, fecha_inicio, frecuencia_meses, dia_semana, base_tecnico } = req.body;
     
@@ -260,7 +262,7 @@ app.post('/empresas', async (req, res) => {
   }
 });
 
-app.put('/empresas/:id', async (req, res) => {
+apiRouter.put('/empresas/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const empresa = await Empresa.findByPk(id);
@@ -327,7 +329,7 @@ app.put('/empresas/:id', async (req, res) => {
   }
 });
 
-app.delete('/empresas/:id', async (req, res) => {
+apiRouter.delete('/empresas/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const empresa = await Empresa.findByPk(id);
@@ -345,12 +347,12 @@ app.delete('/empresas/:id', async (req, res) => {
 });
 
 // --- Endpoints Activos ---
-app.get('/activos', async (req, res) => {
+apiRouter.get('/activos', async (req, res) => {
   const activos = await Activo.findAll({ include: Empresa });
   res.json(activos);
 });
 
-app.post('/activos', async (req, res) => {
+apiRouter.post('/activos', async (req, res) => {
   try {
     const activo = await Activo.create(req.body);
     res.status(201).json(activo);
@@ -379,13 +381,13 @@ const updateVencidos = async () => {
 };
 
 // --- Endpoints Mantenimientos ---
-app.get('/mantenimientos', async (req, res) => {
+apiRouter.get('/mantenimientos', async (req, res) => {
   await updateVencidos();
   const mantenimientos = await Mantenimiento.findAll({ include: Empresa });
   res.json(mantenimientos);
 });
 
-app.post('/mantenimientos', async (req, res) => {
+apiRouter.post('/mantenimientos', async (req, res) => {
   try {
     const mantenimiento = await Mantenimiento.create({ ...req.body, estado: req.body.estado || 'PENDIENTE' });
     res.status(201).json(mantenimiento);
@@ -394,7 +396,7 @@ app.post('/mantenimientos', async (req, res) => {
   }
 });
 
-app.put('/mantenimientos/:id', async (req, res) => {
+apiRouter.put('/mantenimientos/:id', async (req, res) => {
   try {
     const act = await Mantenimiento.findByPk(req.params.id);
     if (!act) return res.status(404).json({ error: "No encontrado" });
@@ -411,7 +413,7 @@ app.put('/mantenimientos/:id', async (req, res) => {
   }
 });
 
-app.delete('/mantenimientos/:id', async (req, res) => {
+apiRouter.delete('/mantenimientos/:id', async (req, res) => {
   try {
     const act = await Mantenimiento.findByPk(req.params.id);
     if (!act) return res.status(404).json({ error: "No encontrado" });
@@ -421,6 +423,15 @@ app.delete('/mantenimientos/:id', async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
+});
+
+app.use('/api', apiRouter);
+
+// Servir frontend estático
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'public')));
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Puerto e inicio de Servidor

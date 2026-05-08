@@ -12,11 +12,14 @@ services:
     networks:
       - pdinet
 
-  backend:
-    image: ghcr.io/luis-acosta/pmo-control-backend:main
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgres://pmo_user:pmo_password@pmo-control_db:5432/pmo_db
+      DATABASE_URL: postgres://pmo_user:pmo_password@db:5432/pmo_db
       PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:-pmo_secret_key}
     depends_on:
       - db
     networks:
@@ -26,26 +29,10 @@ services:
       labels:
         - traefik.enable=true
         - traefik.docker.network=pdinet
-        - traefik.http.routers.pmo-backend.rule=Host(`api.mto.pdiadvanced.cloud`)
-        - traefik.http.routers.pmo-backend.entrypoints=websecure
-        - traefik.http.routers.pmo-backend.tls.certresolver=letsencryptresolver
-        - traefik.http.services.pmo-backend.loadbalancer.server.port=3001
-
-  frontend:
-    image: ghcr.io/luis-acosta/pmo-control-frontend:main
-    environment:
-      BACKEND_URL: http://pmo-control_backend:3001
-    networks:
-      - pdinet
-    deploy:
-      replicas: 1
-      labels:
-        - traefik.enable=true
-        - traefik.docker.network=pdinet
-        - traefik.http.routers.pmo-frontend.rule=Host(`mto.pdiadvanced.cloud`)
-        - traefik.http.routers.pmo-frontend.entrypoints=websecure
-        - traefik.http.routers.pmo-frontend.tls.certresolver=letsencryptresolver
-        - traefik.http.services.pmo-frontend.loadbalancer.server.port=3000
+        - traefik.http.routers.pmo-app.rule=Host(`mto.pdiadvanced.cloud`)
+        - traefik.http.routers.pmo-app.entrypoints=websecure
+        - traefik.http.routers.pmo-app.tls.certresolver=letsencryptresolver
+        - traefik.http.services.pmo-app.loadbalancer.server.port=3001
 
 volumes:
   postgres_data:

@@ -1,24 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: any = {
+  output: 'export',
+  images: {
+    unoptimized: true,
+  },
   allowedDevOrigins: ["192.168.1.4", "localhost:3000"],
-  async redirects() {
-    return [
-      {
-        source: '/',
-        destination: '/login',
-        permanent: false,
-      },
-    ]
-  },
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${process.env.BACKEND_URL || 'http://localhost:3001'}/:path*`, // Proxy to Backend
-      },
-    ]
-  },
 };
 
 export default nextConfig;
