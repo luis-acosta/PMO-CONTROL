@@ -65,11 +65,16 @@ const Usuario = sequelize.define('Usuario', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   username: { type: DataTypes.STRING, unique: true, allowNull: false },
   password: { type: DataTypes.STRING, allowNull: false },
-  role: { type: DataTypes.STRING, defaultValue: 'TECNICO' }, // 'ADMIN' o 'TECNICO'
+  role: { type: DataTypes.STRING, defaultValue: 'TECNICO' }, // 'ADMIN', 'TECNICO' o 'CLIENTE'
   tecnico_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
     references: { model: 'tecnicos', key: 'id' }
+  },
+  empresa_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'empresas', key: 'id' }
   }
 }, { tableName: 'usuarios', timestamps: true });
 
@@ -119,5 +124,8 @@ Mantenimiento.belongsTo(Empresa, { foreignKey: 'empresa_id' });
 
 Tecnico.hasOne(Usuario, { foreignKey: 'tecnico_id' });
 Usuario.belongsTo(Tecnico, { foreignKey: 'tecnico_id' });
+
+Empresa.hasOne(Usuario, { foreignKey: 'empresa_id' });
+Usuario.belongsTo(Empresa, { foreignKey: 'empresa_id' });
 
 module.exports = { Empresa, Activo, Mantenimiento, Tecnico, Usuario, sequelize };

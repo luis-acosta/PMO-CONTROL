@@ -30,6 +30,8 @@ export default function LoginPage() {
 
       if (user.role === "ADMIN") {
         router.push("/admin");
+      } else if (user.role === "CLIENTE") {
+        router.push("/cliente");
       } else {
         router.push("/tecnico");
       }
@@ -48,8 +50,8 @@ export default function LoginPage() {
       
       <div className="w-full max-w-md p-4 relative z-10">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/20 mb-4">
-            <Lock className="text-white h-8 w-8" />
+          <div className="flex justify-center mb-6">
+            <img src="/logo.png" alt="PDI Advanced Logo" className="h-16 object-contain" />
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">PMO Control</h1>
           <p className="text-slate-400 mt-2">Sistema de Gestión de Mantenimiento</p>

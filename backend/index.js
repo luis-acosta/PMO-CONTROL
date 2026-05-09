@@ -54,7 +54,7 @@ apiRouter.post('/login', async (req, res) => {
     if (!validPassword) return res.status(401).json({ error: "Usuario o contraseña incorrectos." });
 
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role, tecnico_id: user.tecnico_id },
+      { id: user.id, username: user.username, role: user.role, tecnico_id: user.tecnico_id, empresa_id: user.empresa_id },
       JWT_SECRET,
       { expiresIn: '8h' }
     );
@@ -65,7 +65,8 @@ apiRouter.post('/login', async (req, res) => {
         id: user.id, 
         username: user.username, 
         role: user.role,
-        tecnico: user.Tecnico ? user.Tecnico.nombre : null
+        tecnico: user.Tecnico ? user.Tecnico.nombre : null,
+        empresa_id: user.empresa_id
       } 
     });
   } catch (error) {
@@ -120,8 +121,10 @@ apiRouter.put('/tecnicos/:id', async (req, res) => {
 
 apiRouter.delete('/tecnicos/:id', async (req, res) => {
   try {
-    await Tecnico.destroy({ where: { id: req.params.id } });
-    res.json({ message: 'Tecnico eliminado' });
+    const { id } = req.params;
+    await Usuario.destroy({ where: { tecnico_id: id } }); // Eliminar credenciales asociadas
+    await Tecnico.destroy({ where: { id } });
+    res.json({ message: 'Técnico y credenciales eliminadas' });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -131,7 +134,10 @@ apiRouter.delete('/tecnicos/:id', async (req, res) => {
 apiRouter.get('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const usuarios = await Usuario.findAll({
-      include: [ { model: Tecnico } ]
+      include: [ 
+        { model: Tecnico },
+        { model: Empresa }
+      ]
     });
     res.json(usuarios);
   } catch (error) {
@@ -141,7 +147,7 @@ apiRouter.get('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (r
 
 apiRouter.post('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
-    const { username, password, role, nombre } = req.body;
+    const { username, password, role, nombre, empresa_id } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
     
     // Si se especifica un nombre, creamos un técnico también si el rol es TECNICO
@@ -155,7 +161,8 @@ apiRouter.post('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (
       username,
       password: hashedPassword,
       role,
-      tecnico_id
+      tecnico_id,
+      empresa_id: role === 'CLIENTE' ? empresa_id : null
     });
 
     res.status(201).json(usuario);
@@ -167,11 +174,15 @@ apiRouter.post('/usuarios', authenticateToken, authorizeRole(['ADMIN']), async (
 apiRouter.put('/usuarios/:id', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const { id } = req.params;
-    const { username, password, role, nombre } = req.body;
+    const { username, password, role, nombre, empresa_id } = req.body;
     const user = await Usuario.findByPk(id, { include: [Tecnico] });
     if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
 
-    let updateData = { username, role };
+    let updateData = { 
+      username, 
+      role,
+      empresa_id: role === 'CLIENTE' ? empresa_id : null
+    };
     if (password && password.trim() !== "") {
       updateData.password = await bcrypt.hash(password, 10);
     }
@@ -209,17 +220,30 @@ apiRouter.delete('/usuarios/:id', authenticateToken, authorizeRole(['ADMIN']), a
 
 // --- Endpoints Empresas ---
 apiRouter.get('/empresas', async (req, res) => {
-  const empresas = await Empresa.findAll();
+  const empresas = await Empresa.findAll({
+    include: [ { model: Usuario, attributes: ['username'] } ]
+  });
   res.json(empresas);
 });
 
 apiRouter.post('/empresas', async (req, res) => {
   try {
-    const { nombre, fecha_inicio, fecha_fin, frecuencia_meses, dia_semana, base_tecnico } = req.body;
+    const { nombre, fecha_inicio, fecha_fin, frecuencia_meses, dia_semana, base_tecnico, client_username, client_password } = req.body;
     
     // Crear Empresa
     const empresa = await Empresa.create({ nombre, fecha_inicio, fecha_fin, frecuencia_meses, dia_semana, base_tecnico });
     
+    // Crear Usuario Cliente si se proporcionaron credenciales
+    if (client_username && client_password) {
+      const hashedPassword = await bcrypt.hash(client_password, 10);
+      await Usuario.create({
+        username: client_username,
+        password: hashedPassword,
+        role: 'CLIENTE',
+        empresa_id: empresa.id
+      });
+    }
+
     // Si se enviaron parámetros de agendamiento, procedemos a generar el cronograma
     if (fecha_inicio && fecha_fin && frecuencia_meses) {
       const frecMeses = parseInt(frecuencia_meses) || 1;
@@ -270,12 +294,31 @@ apiRouter.post('/empresas', async (req, res) => {
 apiRouter.put('/empresas/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const empresa = await Empresa.findByPk(id);
+    const empresa = await Empresa.findByPk(id, { include: Usuario });
     if (!empresa) return res.status(404).json({ error: "Empresa no encontrada" });
     
-    await empresa.update(req.body);
+    const { nombre, fecha_inicio, fecha_fin, frecuencia_meses, dia_semana, base_tecnico, client_username, client_password } = req.body;
+    
+    await empresa.update({ nombre, fecha_inicio, fecha_fin, frecuencia_meses, dia_semana, base_tecnico });
 
-    const { fecha_inicio, fecha_fin, frecuencia_meses, dia_semana, base_tecnico } = req.body;
+    // Actualizar o crear Usuario Cliente
+    if (client_username) {
+      if (empresa.Usuario) {
+        let updateData = { username: client_username };
+        if (client_password && client_password.trim() !== "") {
+          updateData.password = await bcrypt.hash(client_password, 10);
+        }
+        await empresa.Usuario.update(updateData);
+      } else if (client_password) {
+        const hashedPassword = await bcrypt.hash(client_password, 10);
+        await Usuario.create({
+          username: client_username,
+          password: hashedPassword,
+          role: 'CLIENTE',
+          empresa_id: empresa.id
+        });
+      }
+    }
     if (fecha_inicio && fecha_fin && frecuencia_meses) {
       await Mantenimiento.destroy({ 
         where: { 
@@ -346,12 +389,13 @@ apiRouter.delete('/empresas/:id', async (req, res) => {
     const empresa = await Empresa.findByPk(id);
     if (!empresa) return res.status(404).json({ error: "Empresa no encontrada" });
     
-    // Borrar mantenimientos en cascada manualmente por seguridad (o confiar en la DB si onDelete:'CASCADE' estuviera probado)
+    // Borrar mantenimientos en cascada manualmente por seguridad
     await Mantenimiento.destroy({ where: { empresa_id: id } });
     await Activo.destroy({ where: { empresa_id: id } });
+    await Usuario.destroy({ where: { empresa_id: id } }); // También borramos el usuario cliente asociado
     
     await empresa.destroy();
-    res.json({ message: "Empresa y dependencias eliminadas" });
+    res.json({ message: "Empresa, credenciales y dependencias eliminadas" });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -448,7 +492,8 @@ app.use((req, res) => {
 // Puerto e inicio de Servidor
 const PORT = process.env.PORT || 3001; // Usamos 3001 para que no choque con 3000 de React/Next
 
-sequelize.sync({ alter: true }).then(async () => {
+const isPostgres = sequelize.getDialect() === 'postgres';
+sequelize.sync({ alter: isPostgres }).then(async () => {
   console.log("Database connected and synchronized.");
 
   // --- Auto-seed: datos iniciales (admin, técnico, empresa demo) ---

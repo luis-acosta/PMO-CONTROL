@@ -200,7 +200,9 @@ export default function TecnicoDashboard() {
     <div className="container mx-auto p-4 sm:p-6 space-y-6 max-w-7xl">
       <div className="flex items-center justify-between mb-8 bg-white p-6 rounded-2xl shadow-xl border border-slate-200 w-full animate-in slide-in-from-top-4 duration-500">
         <div className="flex items-center gap-4">
-          <span className="p-2 bg-sky-600 rounded-md shadow-lg"><Wrench className="h-5 w-5 text-white" /></span>
+          <div className="flex-shrink-0">
+            <img src="/logo.png" alt="PDI Advanced Logo" className="h-12 object-contain" />
+          </div>
           <div>
             <h2 className="text-2xl font-extrabold text-black">Portal de Técnico</h2>
             <p className="text-slate-700 font-bold uppercase tracking-widest text-[11px]">

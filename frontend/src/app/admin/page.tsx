@@ -42,9 +42,10 @@ export default function AdminDashboard() {
     return days[date.getDay()];
   };
   
-  const [formData, setFormData] = useState({ nombre: "", fecha_inicio: "", fecha_fin: "", frecuencia_meses: "1", dia_semana: "6", base_tecnico: "" });
+  const [formData, setFormData] = useState({ nombre: "", fecha_inicio: "", fecha_fin: "", frecuencia_meses: "1", dia_semana: "6", base_tecnico: "", client_username: "", client_password: "" });
   const [tecData, setTecData] = useState({ nombre: "", especialidad: "", username: "", password: "" });
-  const [userEditData, setUserEditData] = useState({ nombre: "", username: "", password: "", role: "TECNICO" });
+  const [userEditData, setUserEditData] = useState({ nombre: "", username: "", password: "", role: "CLIENTE", empresa_id: "" });
+  const [userToDelete, setUserToDelete] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   
   const [filtroMants, setFiltroMants] = useState<"TODOS"|"PENDIENTE"|"EJECUTADO"|"VENCIDO">("TODOS");
@@ -102,7 +103,7 @@ export default function AdminDashboard() {
     try {
       await api.post("/empresas", formData);
       setOpenAdd(false);
-      setFormData({ nombre: "", fecha_inicio: "", fecha_fin: "", frecuencia_meses: "1", dia_semana: "6", base_tecnico: "" });
+      setFormData({ nombre: "", fecha_inicio: "", fecha_fin: "", frecuencia_meses: "1", dia_semana: "6", base_tecnico: "", client_username: "", client_password: "" });
       loadData();
     } catch (err: any) {
       alert("Error al crear empresa: " + (err.response?.data?.error || err.message));
@@ -152,7 +153,7 @@ export default function AdminDashboard() {
     try {
       await api.post('/usuarios', userEditData);
       setOpenAddUsuario(false);
-      setUserEditData({ nombre: "", username: "", password: "", role: "TECNICO" });
+      setUserEditData({ nombre: "", username: "", password: "", role: "CLIENTE", empresa_id: "" });
       loadData();
     } catch (err: any) { alert("Error al crear usuario: " + (err.response?.data?.error || err.message)); }
   };
@@ -166,9 +167,11 @@ export default function AdminDashboard() {
     } catch (err: any) { alert("Error al actualizar usuario: " + (err.response?.data?.error || err.message)); }
   };
 
-  const handleDeleteUsuario = async (id: number) => {
+  const handleDeleteUsuario = async () => {
+    if (!userToDelete) return;
     try {
-      await api.delete(`/usuarios/${id}`);
+      await api.delete(`/usuarios/${userToDelete.id}`);
+      setUserToDelete(null);
       loadData();
     } catch (err: any) { alert("Error al eliminar usuario: " + (err.response?.data?.error || err.message)); }
   };
@@ -284,9 +287,10 @@ export default function AdminDashboard() {
         >
           <LogOut className="h-4 w-4 mr-2" /> Salir
         </Button>
-
+        <div className="flex justify-center mb-2">
+          <img src="/logo.png" alt="PDI Advanced Logo" className="h-14 object-contain" />
+        </div>
         <h2 className="text-3xl font-extrabold tracking-tight text-black flex items-center gap-2">
-          <span className="p-2 bg-blue-600 rounded-md shadow-lg"><Settings className="h-6 w-6 text-white" /></span>
           PMO Maintenance Admin
         </h2>
         <div className="h-1 w-24 bg-blue-600 rounded-full"></div>
@@ -703,6 +707,13 @@ export default function AdminDashboard() {
                          {getDayName(editEmpresa.fecha_inicio)}
                        </div>
                      </div>
+                     <div className="space-y-2 col-span-2 pt-2 border-t border-slate-700">
+                        <Label className="text-blue-400">Credenciales de Acceso Cliente</Label>
+                        <div className="grid grid-cols-2 gap-4">
+                          <Input placeholder="Usuario Cliente" value={editEmpresa.client_username || ""} onChange={(e) => setEditEmpresa({ ...editEmpresa, client_username: e.target.value })} className="bg-slate-900/50 border-slate-700" />
+                          <Input type="password" placeholder="Nueva Contraseña" value={editEmpresa.client_password || ""} onChange={(e) => setEditEmpresa({ ...editEmpresa, client_password: e.target.value })} className="bg-slate-900/50 border-slate-700" />
+                        </div>
+                     </div>
                      <div className="space-y-2 col-span-2">
                        <Label>Técnico Default</Label>
                         <Select value={editEmpresa.base_tecnico || "none"} onValueChange={(val) => setEditEmpresa({ ...editEmpresa, base_tecnico: val === "none" ? "" : val })}>
@@ -719,6 +730,8 @@ export default function AdminDashboard() {
                )}
              </DialogContent>
            </Dialog>
+
+
 
            {/* EDIT TECNICO MODAL */}
            <Dialog open={!!editTecnico} onOpenChange={(open) => !open && setEditTecnico(null)}>
@@ -877,34 +890,56 @@ export default function AdminDashboard() {
                    <DialogTitle className="text-purple-400">Nuevo Usuario del Sistema</DialogTitle>
                  </DialogHeader>
                  <form onSubmit={handleCreateUsuario} className="space-y-4 py-4 text-slate-200">
-                   <div className="space-y-2">
-                     <Label>Nombre Completo (Vinculado a Técnico)</Label>
-                     <Input required value={userEditData.nombre} onChange={(e) => setUserEditData({ ...userEditData, nombre: e.target.value })} className="bg-slate-900/50 border-slate-700" placeholder="Ej: Juan Pérez" />
-                   </div>
-                   <div className="grid grid-cols-2 gap-4">
-                     <div className="space-y-2">
-                       <Label>Usuario</Label>
-                       <Input required value={userEditData.username} onChange={(e) => setUserEditData({ ...userEditData, username: e.target.value })} className="bg-slate-900/50 border-slate-700" placeholder="jperez" />
-                     </div>
-                     <div className="space-y-2">
-                       <Label>Contraseña</Label>
-                       <Input type="password" required value={userEditData.password} onChange={(e) => setUserEditData({ ...userEditData, password: e.target.value })} className="bg-slate-900/50 border-slate-700" placeholder="••••••••" />
-                     </div>
-                   </div>
-                   <div className="space-y-2">
-                     <Label>Rol del Sistema</Label>
-                     <Select value={userEditData.role} onValueChange={(val) => setUserEditData({ ...userEditData, role: val || userEditData.role })}>
-                       <SelectTrigger className="bg-slate-900/50 border-slate-700"><SelectValue /></SelectTrigger>
-                       <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                         <SelectItem value="TECNICO">TÉCNICO DE CAMPO</SelectItem>
-                         <SelectItem value="ADMIN">ADMINISTRADOR</SelectItem>
-                       </SelectContent>
-                     </Select>
-                   </div>
-                   <DialogFooter>
-                     <Button type="submit" className="bg-purple-600 hover:bg-purple-700 w-full mt-2">Crear Cuenta de Acceso</Button>
-                   </DialogFooter>
-                 </form>
+                    <div className="space-y-2">
+                      <Label>Nombre personal</Label>
+                      <Input required value={userEditData.nombre} onChange={(e) => setUserEditData({ ...userEditData, nombre: e.target.value })} className="bg-slate-900/50 border-slate-700" placeholder="Ej: Juan Pérez" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Usuario</Label>
+                        <Input required value={userEditData.username} onChange={(e) => setUserEditData({ ...userEditData, username: e.target.value })} className="bg-slate-900/50 border-slate-700" placeholder="jperez" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Contraseña</Label>
+                        <Input type="password" required value={userEditData.password} onChange={(e) => setUserEditData({ ...userEditData, password: e.target.value })} className="bg-slate-900/50 border-slate-700" placeholder="••••••••" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Rol del Sistema</Label>
+                        <Select value={userEditData.role} onValueChange={(val) => setUserEditData({ ...userEditData, role: val || userEditData.role })}>
+                          <SelectTrigger className="bg-slate-900/50 border-slate-700"><SelectValue /></SelectTrigger>
+                          <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                            <SelectItem value="CLIENTE" className="text-emerald-400 font-bold">CLIENTE (EMPRESA)</SelectItem>
+                            <SelectItem value="TECNICO" className="text-sky-400 font-bold">TÉCNICO DE CAMPO</SelectItem>
+                            <SelectItem value="ADMIN" className="text-purple-400 font-bold">ADMINISTRADOR</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Empresa Asociada</Label>
+                        <Select 
+                          value={userEditData.role === "CLIENTE" ? String(userEditData.empresa_id) : "TODAS"} 
+                          onValueChange={(val) => setUserEditData({ ...userEditData, empresa_id: val === "TODAS" ? "" : val })}
+                          disabled={userEditData.role !== "CLIENTE"}
+                        >
+                          <SelectTrigger className="bg-slate-900/50 border-slate-700">
+                            <SelectValue placeholder={userEditData.role === "CLIENTE" ? "Seleccionar..." : "TODAS"} />
+                          </SelectTrigger>
+                          <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                            {userEditData.role === "CLIENTE" ? (
+                              empresas.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.nombre}</SelectItem>)
+                            ) : (
+                              <SelectItem value="TODAS">TODAS</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" className="bg-purple-600 hover:bg-purple-700 w-full mt-2">Crear Cuenta de Acceso</Button>
+                    </DialogFooter>
+                  </form>
                </DialogContent>
              </Dialog>
            </div>
@@ -925,13 +960,13 @@ export default function AdminDashboard() {
                       <TableRow key={u.id} className="border-slate-700/50 hover:bg-slate-800/50">
                         <TableCell className="text-slate-300 text-sm">
                           <div className="flex flex-col">
-                            <span className="font-bold text-white uppercase">{u.Tecnico ? u.Tecnico.nombre : "ADMINISTRADOR"}</span>
+                            <span className="font-bold text-white uppercase">{u.Tecnico ? u.Tecnico.nombre : (u.Empresa ? u.Empresa.nombre : "ADMINISTRADOR")}</span>
                             <span className="text-[10px] text-slate-500 italic">ID DB: {u.id}</span>
                           </div>
                         </TableCell>
                         <TableCell className="font-mono text-sky-400">{u.username}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={u.role === 'ADMIN' ? 'text-purple-400 border-purple-500/30 bg-purple-500/10' : 'text-sky-400 border-sky-500/30 bg-sky-500/10'}>
+                          <Badge variant="outline" className={u.role === 'ADMIN' ? 'text-purple-400 border-purple-500/30 bg-purple-500/10' : u.role === 'CLIENTE' ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-sky-400 border-sky-500/30 bg-sky-500/10'}>
                             {u.role}
                           </Badge>
                         </TableCell>
@@ -943,10 +978,11 @@ export default function AdminDashboard() {
                               onClick={() => {
                                 setEditUsuario(u);
                                 setUserEditData({ 
-                                  nombre: u.Tecnico ? u.Tecnico.nombre : "", 
+                                  nombre: u.Tecnico ? u.Tecnico.nombre : (u.Empresa ? u.Empresa.nombre : ""), 
                                   username: u.username, 
                                   password: "", 
-                                  role: u.role 
+                                  role: u.role,
+                                  empresa_id: u.empresa_id ? String(u.empresa_id) : ""
                                 });
                               }}
                             >
@@ -956,11 +992,7 @@ export default function AdminDashboard() {
                               variant="ghost" 
                               size="icon" 
                               className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-500/20" 
-                              onClick={() => {
-                                if (confirm(`¿Está seguro de eliminar al usuario "${u.username}"?`)) {
-                                  handleDeleteUsuario(u.id);
-                                }
-                              }}
+                              onClick={() => setUserToDelete(u)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -972,32 +1004,140 @@ export default function AdminDashboard() {
              </CardContent>
            </Card>
 
+            {/* VISTA DIRECTORIO DE EMPRESAS (ACCESO CLIENTE) */}
+            <Card className="bg-[#1E293B] border-slate-700 mt-6">
+              <CardHeader className="pb-3 border-b border-slate-700/50">
+                <CardTitle className="text-white text-lg flex items-center gap-2"><Briefcase className="h-5 w-5 text-emerald-500" /> Directorio de Empresas (Accesos)</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-slate-900/40">
+                    <TableRow className="border-slate-700/50">
+                      <TableHead className="text-slate-300">Empresa / Cliente</TableHead>
+                      <TableHead className="text-slate-300">Usuario Acceso</TableHead>
+                      <TableHead className="text-slate-300">Rol</TableHead>
+                      <TableHead className="text-right text-slate-300">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {empresas.map((emp: any) => {
+                      const userLink = usuarios.find(u => u.empresa_id === emp.id);
+                      return (
+                        <TableRow key={emp.id} className="border-slate-700/50 hover:bg-slate-800/50">
+                          <TableCell className="font-semibold text-white uppercase">{emp.nombre}</TableCell>
+                          <TableCell className="font-mono text-emerald-400">{userLink?.username || "SIN ACCESO"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 bg-emerald-500/10">EMPRESA</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-sky-500 hover:text-sky-400 hover:bg-sky-500/20" 
+                              onClick={() => {
+                                setEditUsuario(userLink);
+                                setUserEditData({
+                                  nombre: emp.nombre,
+                                  username: userLink?.username || "",
+                                  password: "",
+                                  role: "CLIENTE",
+                                  empresa_id: String(emp.id)
+                                });
+                              }}
+                              disabled={!userLink}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            {userLink && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-500/20" 
+                                onClick={() => setUserToDelete(userLink)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
            {/* VISTA DIRECTORIO DE TÉCNICOS */}
            <Card className="bg-[#1E293B] border-slate-700 mt-6">
              <CardHeader className="pb-3 border-b border-slate-700/50">
-               <CardTitle className="text-white text-lg flex items-center gap-2"><UserPlus className="h-5 w-5 text-sky-500" /> Directorio de Técnicos</CardTitle>
+               <CardTitle className="text-white text-lg flex items-center gap-2"><UserPlus className="h-5 w-5 text-sky-500" /> Directorio de Técnicos (Accesos)</CardTitle>
              </CardHeader>
              <CardContent className="p-0 overflow-x-auto">
                <Table>
                  <TableHeader className="bg-slate-900/40">
                    <TableRow className="border-slate-700/50">
-                     <TableHead className="text-slate-300">ID Técnico</TableHead>
-                     <TableHead className="text-slate-300">Nombre Completo</TableHead>
-                     <TableHead className="text-slate-300">Especialidad</TableHead>
+                     <TableHead className="text-slate-300">Técnico de Campo</TableHead>
+                     <TableHead className="text-slate-300">Usuario Acceso</TableHead>
+                     <TableHead className="text-slate-300">Rol</TableHead>
                      <TableHead className="text-right text-slate-300">Acciones</TableHead>
                    </TableRow>
                  </TableHeader>
                  <TableBody>
-                   {tecnicos.map((tec: any) => (
-                      <TableRow key={tec.id} className="border-slate-700/50 hover:bg-slate-800/50">
-                        <TableCell className="text-slate-200 text-xs">TEC-{tec.id}</TableCell>
-                        <TableCell className="font-semibold text-white">{tec.nombre}</TableCell>
-                        <TableCell className="text-slate-300">{tec.especialidad || "-"}</TableCell>
-                        <TableCell className="text-right">
-                             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 cursor-not-allowed"><Info className="h-4 w-4" /></Button>
-                        </TableCell>
-                      </TableRow>
-                   ))}
+                   {tecnicos.map((tec: any) => {
+                      const userLink = usuarios.find(u => u.tecnico_id === tec.id);
+                      return (
+                        <TableRow key={tec.id} className="border-slate-700/50 hover:bg-slate-800/50">
+                          <TableCell className="font-semibold text-white uppercase">{tec.nombre}</TableCell>
+                          <TableCell className="font-mono text-sky-400">{userLink?.username || "SIN ACCESO"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-sky-400 border-sky-500/30 bg-sky-500/10">TÉCNICO</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-sky-500 hover:text-sky-400 hover:bg-sky-500/20" 
+                              onClick={() => {
+                                if (userLink) {
+                                  setEditUsuario(userLink);
+                                  setUserEditData({
+                                    nombre: tec.nombre,
+                                    username: userLink.username,
+                                    password: "",
+                                    role: "TECNICO",
+                                    empresa_id: ""
+                                  });
+                                } else {
+                                  // Si no tiene usuario, podríamos abrir el modal de crear, 
+                                  // pero por ahora solo permitimos editar a los que ya tienen o 
+                                  // redirigimos a crear usuario normal.
+                                  setOpenAddUsuario(true);
+                                  setUserEditData({
+                                    nombre: tec.nombre,
+                                    username: "",
+                                    password: "",
+                                    role: "TECNICO",
+                                    empresa_id: ""
+                                  });
+                                }
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            {userLink && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-500/20" 
+                                onClick={() => setUserToDelete(userLink)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                   })}
                    {tecnicos.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={4} className="py-8 text-center text-slate-200">No hay técnicos registrados.</TableCell>
@@ -1018,35 +1158,71 @@ export default function AdminDashboard() {
                </DialogHeader>
                {editUsuario && (
                  <form onSubmit={handleUpdateUsuario} className="space-y-4 py-4 text-slate-200">
-                   <div className="space-y-2">
-                     <Label>Nombre Completo</Label>
-                     <Input required value={userEditData.nombre} onChange={(e) => setUserEditData({ ...userEditData, nombre: e.target.value })} className="bg-slate-900/50 border-slate-700" />
-                   </div>
-                   <div className="grid grid-cols-2 gap-4">
-                     <div className="space-y-2">
-                       <Label>Usuario</Label>
-                       <Input required value={userEditData.username} onChange={(e) => setUserEditData({ ...userEditData, username: e.target.value })} className="bg-slate-900/50 border-slate-700" />
-                     </div>
-                     <div className="space-y-2">
-                       <Label>Rol</Label>
-                       <Select value={userEditData.role} onValueChange={(val) => val && setUserEditData({ ...userEditData, role: val })}>
-                         <SelectTrigger className="bg-slate-900/50 border-slate-700"><SelectValue /></SelectTrigger>
-                         <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                           <SelectItem value="ADMIN">ADMIN</SelectItem>
-                           <SelectItem value="TECNICO">TÉCNICO</SelectItem>
-                         </SelectContent>
-                       </Select>
-                     </div>
-                   </div>
-                   <div className="space-y-2">
-                     <Label>Nueva Contraseña (vacío para mantener)</Label>
-                     <Input type="password" value={userEditData.password} onChange={(e) => setUserEditData({ ...userEditData, password: e.target.value })} className="bg-slate-900/50 border-slate-700" placeholder="••••••••" />
-                   </div>
-                   <DialogFooter>
-                     <Button type="submit" className="bg-purple-600 hover:bg-purple-700 w-full mt-2">Guardar Cambios</Button>
-                   </DialogFooter>
-                 </form>
+                    <div className="space-y-2">
+                      <Label>Nombre personal</Label>
+                      <Input required value={userEditData.nombre} onChange={(e) => setUserEditData({ ...userEditData, nombre: e.target.value })} className="bg-slate-900/50 border-slate-700" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Usuario</Label>
+                        <Input required value={userEditData.username} onChange={(e) => setUserEditData({ ...userEditData, username: e.target.value })} className="bg-slate-900/50 border-slate-700" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Rol</Label>
+                        <Select value={userEditData.role} onValueChange={(val) => val && setUserEditData({ ...userEditData, role: val })}>
+                          <SelectTrigger className="bg-slate-900/50 border-slate-700"><SelectValue /></SelectTrigger>
+                          <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                            <SelectItem value="CLIENTE" className="text-emerald-400 font-bold">CLIENTE</SelectItem>
+                            <SelectItem value="TECNICO" className="text-sky-400 font-bold">TÉCNICO</SelectItem>
+                            <SelectItem value="ADMIN" className="text-purple-400 font-bold">ADMIN</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Empresa Asociada</Label>
+                      <Select 
+                        value={userEditData.role === "CLIENTE" ? String(userEditData.empresa_id) : "TODAS"} 
+                        onValueChange={(val) => setUserEditData({ ...userEditData, empresa_id: val === "TODAS" ? "" : val })}
+                        disabled={userEditData.role !== "CLIENTE"}
+                      >
+                        <SelectTrigger className="bg-slate-900/50 border-slate-700">
+                          <SelectValue placeholder={userEditData.role === "CLIENTE" ? "Seleccionar..." : "TODAS"} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                          {userEditData.role === "CLIENTE" ? (
+                            empresas.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.nombre}</SelectItem>)
+                          ) : (
+                            <SelectItem value="TODAS">TODAS</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Nueva Contraseña (vacío para mantener)</Label>
+                      <Input type="password" value={userEditData.password} onChange={(e) => setUserEditData({ ...userEditData, password: e.target.value })} className="bg-slate-900/50 border-slate-700" placeholder="••••••••" />
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" className="bg-purple-600 hover:bg-purple-700 w-full mt-2">Guardar Cambios</Button>
+                    </DialogFooter>
+                  </form>
                )}
+             </DialogContent>
+           </Dialog>
+
+           {/* DELETE USER CONFIRMATION MODAL */}
+           <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+             <DialogContent className="bg-[#1E293B] border-slate-700 text-white max-w-sm">
+               <DialogHeader>
+                 <DialogTitle className="flex items-center gap-2 text-red-400"><Trash2 className="h-5 w-5" /> Eliminar Usuario</DialogTitle>
+                 <DialogDescription className="text-slate-400 pt-2">
+                   ¿Está seguro de que desea eliminar la cuenta de <strong>{userToDelete?.username}</strong>? Esta acción no se puede deshacer.
+                 </DialogDescription>
+               </DialogHeader>
+               <DialogFooter className="gap-2 sm:gap-0 mt-4">
+                 <Button variant="ghost" onClick={() => setUserToDelete(null)} className="text-slate-400 hover:text-white hover:bg-slate-800">Cancelar</Button>
+                 <Button onClick={handleDeleteUsuario} className="bg-red-600 hover:bg-red-700 text-white">Eliminar Permanente</Button>
+               </DialogFooter>
              </DialogContent>
            </Dialog>
                   </div>
