@@ -920,7 +920,7 @@ export default function AdminDashboard() {
                         <Label>Empresa Asociada</Label>
                         <Select 
                           value={userEditData.role === "CLIENTE" ? String(userEditData.empresa_id) : "TODAS"} 
-                          onValueChange={(val) => setUserEditData({ ...userEditData, empresa_id: val === "TODAS" ? "" : val })}
+                          onValueChange={(val) => setUserEditData({ ...userEditData, empresa_id: val === "TODAS" ? "" : (val || "") })}
                           disabled={userEditData.role !== "CLIENTE"}
                         >
                           <SelectTrigger className="bg-slate-900/50 border-slate-700">
@@ -1183,7 +1183,7 @@ export default function AdminDashboard() {
                       <Label>Empresa Asociada</Label>
                       <Select 
                         value={userEditData.role === "CLIENTE" ? String(userEditData.empresa_id) : "TODAS"} 
-                        onValueChange={(val) => setUserEditData({ ...userEditData, empresa_id: val === "TODAS" ? "" : val })}
+                        onValueChange={(val) => setUserEditData({ ...userEditData, empresa_id: val === "TODAS" ? "" : (val || "") })}
                         disabled={userEditData.role !== "CLIENTE"}
                       >
                         <SelectTrigger className="bg-slate-900/50 border-slate-700">
